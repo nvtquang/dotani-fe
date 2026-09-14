@@ -129,7 +129,6 @@ export const OrganizationPage = () => {
       <PageHeader
         eyebrow="Quản lý"
         title="Tổ dân phố"
-        description="Quản lý cơ cấu Phường Thượng Cát và các Chi đoàn TDP theo dữ liệu member-service."
         actions={
           <button className="primary-button inline-button" type="button" onClick={openCreate}>
             <Plus size={17} aria-hidden="true" />

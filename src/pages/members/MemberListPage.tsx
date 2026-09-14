@@ -101,7 +101,6 @@ export const MemberListPage = () => {
       <PageHeader
         eyebrow="Quản lý"
         title={role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY' ? 'Đoàn viên TDP' : 'Quản lý đoàn viên'}
-        description="Danh sách đoàn viên theo phạm vi quản lý của tài khoản đang đăng nhập."
         actions={
           <button className="primary-button inline-button" type="button" onClick={() => setIsCreateOpen(true)}>
             <UserPlus size={17} aria-hidden="true" />

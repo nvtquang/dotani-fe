@@ -126,7 +126,6 @@ export const ProfilePage = () => {
       <PageHeader
         eyebrow="Cá nhân"
         title="Hồ sơ cá nhân"
-        description="Thông tin phân quyền, TDP và trạng thái được quản lý bởi cán bộ có thẩm quyền."
       />
 
       {profileError && <section className="error-box">{profileError}</section>}

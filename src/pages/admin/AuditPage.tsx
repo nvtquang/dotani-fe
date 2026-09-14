@@ -99,7 +99,6 @@ export const AuditPage = () => {
       <PageHeader
         eyebrow="Hệ thống"
         title={isWardSecretary ? 'Audit / Phân quyền' : 'Audit nghiệp vụ'}
-        description="Theo dõi các thao tác quản trị quan trọng. Dữ liệu nhạy cảm như JWT, mật khẩu, QR và số tài khoản đầy đủ không được hiển thị."
         actions={
           isWardSecretary && (
             <Link className="primary-button inline-button" to="/members">

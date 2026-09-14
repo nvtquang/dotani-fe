@@ -146,7 +146,6 @@ export const DashboardPage = () => {
       <PageHeader
         eyebrow="Tổng quan"
         title="Bảng tin hoạt động"
-        description="Dòng thời gian sự kiện và bài viết theo phạm vi dữ liệu backend cho phép."
         actions={
           isWard && (
             <>

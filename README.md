@@ -1,109 +1,127 @@
 # HCMCYU Frontend
 
-Frontend React/Vite/TypeScript cho hệ thống HCMCYU.
+Frontend React cho hệ thống website quản lý đoàn viên Đoàn TNCS Hồ Chí Minh Phường Thượng Cát.
 
-## Folder
+Backend repository: https://github.com/nvtquang/youth-union-management.git
 
-```text
-D:\Java\HCMCYU-frontend
-```
+## Mô tả
 
-Backend nằm tại:
+Frontend cung cấp giao diện quản lý hồ sơ đoàn viên, tổ dân phố, sự kiện, bài viết/báo cáo hoạt động, chat realtime, thông báo, QR Banking cá nhân và dashboard dòng thời gian.
 
-```text
-D:\Java\HCMCYU
-```
+Frontend chỉ xử lý trải nghiệm người dùng và ẩn/hiện giao diện theo role. Bảo mật thật sự vẫn do backend enforce bằng JWT, RBAC và organization scope.
 
-## Công nghệ
+## Stack
 
-- React
-- Vite
+- React 19
+- Vite 7
 - TypeScript
 - React Router
 - Axios
 - TanStack Query
-- STOMP WebSocket cho chat realtime
+- STOMP WebSocket
+- Lucide React
+- CSS thuần trong `src/styles.css`
 
-## Yêu cầu
+## Scope Frontend
+
+Các màn hình chính:
+
+| Route | Mục đích |
+| --- | --- |
+| `/login` | Đăng nhập tài khoản hệ thống hoặc Google |
+| `/register` | Đăng ký đoàn viên |
+| `/dashboard` | Dòng thời gian sự kiện và bài viết |
+| `/profile` | Hồ sơ cá nhân, avatar, QR Banking |
+| `/members` | Quản lý đoàn viên theo quyền |
+| `/members/:id` | Chi tiết đoàn viên, phân quyền nếu được phép |
+| `/organizations` | Quản lý tổ dân phố |
+| `/events`, `/events/:id` | Danh sách/chi tiết sự kiện, phản hồi tham gia |
+| `/posts`, `/posts/:id` | Bài viết và báo cáo hoạt động |
+| `/chat` | Chat 1-1 và group chat realtime |
+| `/notifications` | Thông báo |
+| `/audit-logs` | Audit/phân quyền cho role được phép |
+
+Role đang dùng:
+
+- `WARD_SECRETARY`
+- `WARD_DEPUTY_SECRETARY`
+- `TDP_SECRETARY`
+- `TDP_DEPUTY_SECRETARY`
+- `MEMBER`
+
+## Cài đặt
+
+Yêu cầu:
 
 - Node.js 20+
 - npm
-- Backend gateway đang chạy ở port `8080`
+- Backend gateway chạy tại `http://localhost:8080`
 
-Kiểm tra:
-
-```powershell
-node -v
-npm -v
-```
-
-## Cấu hình môi trường
-
-Tạo file `.env`:
+Clone frontend:
 
 ```powershell
+cd D:\Java
+git clone https://github.com/nvtquang/hcmcyu-frontend.git HCMCYU-frontend
 cd D:\Java\HCMCYU-frontend
-Copy-Item .env.example .env
 ```
 
-Nội dung mặc định:
+Cài package:
+
+```powershell
+npm install
+```
+
+Tạo file môi trường:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Nội dung tối thiểu:
 
 ```env
 VITE_API_BASE_URL=http://localhost:8080
 VITE_CHAT_WS_URL=ws://localhost:8080/ws/chat
+```
+
+Nếu dùng đăng nhập Google:
+
+```env
 VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 ```
 
-Ý nghĩa:
-
-- `VITE_API_BASE_URL`: REST API qua `api-gateway`.
-- `VITE_CHAT_WS_URL`: WebSocket/STOMP chat qua `api-gateway`.
-- `VITE_GOOGLE_CLIENT_ID`: Google OAuth Web Client ID de hien nut dang nhap Google.
-
-Khi tao Google OAuth Client, them JavaScript origin:
+Trong Google Cloud Console, OAuth Client cần có Authorized JavaScript origin:
 
 ```text
 http://localhost:5173
 ```
 
-## Cài đặt
+Chạy development:
 
 ```powershell
-cd D:\Java\HCMCYU-frontend
-npm install
-```
-
-## Chạy development
-
-Trước khi chạy frontend, cần chạy backend gateway và các service backend cần test.
-
-Sau đó chạy:
-
-```powershell
-cd D:\Java\HCMCYU-frontend
 npm run dev
 ```
 
-Mở:
+Mở trình duyệt:
 
 ```text
 http://localhost:5173
 ```
 
-## Build
+Build production:
 
 ```powershell
-cd D:\Java\HCMCYU-frontend
 npm run build
 ```
 
-Output build nằm trong:
+Preview bản build:
 
-```text
-dist
+```powershell
+npm run preview
 ```
 
-## Chạy bằng Docker Compose
+## Chạy cùng Docker Compose
 
 Docker Compose nằm ở backend root:
 
@@ -113,15 +131,29 @@ Copy-Item .env.example .env
 docker compose up --build
 ```
 
-Compose sẽ build frontend từ folder `D:\Java\HCMCYU-frontend` và serve bằng Nginx tại:
+Compose sẽ build frontend từ folder:
+
+```text
+D:\Java\HCMCYU-frontend
+```
+
+Frontend được serve tại:
 
 ```text
 http://localhost:5173
 ```
 
-## Tài khoản demo
+Nếu đổi `VITE_*` trong `.env`, cần build lại frontend:
 
-Backend seed dev dùng password:
+```powershell
+docker compose up --build -d frontend
+```
+
+## Tài khoản mẫu
+
+Seed development nằm ở backend và chỉ chạy với profile `dev`.
+
+Mật khẩu mặc định:
 
 ```text
 Demo@12345
@@ -129,45 +161,51 @@ Demo@12345
 
 Một số tài khoản hay dùng:
 
-| Role | Username |
-| --- | --- |
-| WARD_SECRETARY | ward.secretary |
-| WARD_DEPUTY_SECRETARY | ward.deputy |
-| TDP_SECRETARY | tdp1.secretary |
-| TDP_DEPUTY_SECRETARY | tdp1.deputy |
-| MEMBER | tdp1.member1 |
+| Username | Email | Role |
+| --- | --- | --- |
+| `admin` | `admin@hcmcyu.local` | `WARD_SECRETARY` |
+| `ward.secretary` | `ward.secretary@hcmcyu.local` | `WARD_SECRETARY` |
+| `ward.deputy` | `ward.deputy@hcmcyu.local` | `WARD_DEPUTY_SECRETARY` |
+| `tdp1.secretary` | `tdp1.secretary@hcmcyu.local` | `TDP_SECRETARY` |
+| `tdp1.deputy` | `tdp1.deputy@hcmcyu.local` | `TDP_DEPUTY_SECRETARY` |
+| `tdp1.member1` | `tdp1.member1@hcmcyu.local` | `MEMBER` |
 
-## Flow test nhanh
-
-1. Mở `http://localhost:5173/login`.
-2. Login bằng `ward.secretary / Demo@12345`.
-3. Kiểm tra Dashboard, Members, Events, Posts, Chat, Notifications.
-4. Logout.
-5. Login bằng `tdp1.member1 / Demo@12345`.
-6. Kiểm tra Profile, Events, Posts, Chat, Notifications.
-
-## Ghi chú Chat realtime
-
-Chat dùng STOMP qua:
+Các tài khoản TDP khác theo quy ước:
 
 ```text
-ws://localhost:8080/ws/chat
+tdp2.secretary
+tdp2.deputy
+tdp2.member1
+...
+tdp5.secretary
+tdp5.deputy
+tdp5.member5
 ```
 
-Frontend gửi message chỉ gồm:
+## Cấu trúc thư mục
 
-```json
-{
-  "content": "Nội dung tin nhắn"
-}
+```text
+src/
+  api/          # Axios, config, query client, token storage
+  assets/       # Static assets
+  components/   # Layout, UI dùng chung
+  features/     # Form/logic theo nghiệp vụ
+  hooks/        # React Query hooks, auth/chat hooks
+  layouts/      # App layout
+  pages/        # Route pages
+  routes/       # Router, protected routes, navigation
+  services/     # API service layer
+  stores/       # Auth context/state
+  types/        # TypeScript types
+  utils/        # Helper functions
 ```
 
-Frontend không gửi `senderId`. Backend lấy sender từ JWT.
+## Lưu ý
 
-Nếu chat REST chạy nhưng realtime không kết nối được, kiểm tra:
-
-- `api-gateway` đang chạy port `8080`.
-- `chat-service` đang chạy port `8085`.
-- `CHAT_SERVICE_WS_URL=ws://localhost:8085` ở gateway nếu bạn override env.
-- `JWT_SECRET` của `chat-service` trùng với `AUTH_JWT_SECRET` của `auth-service`.
-# hcmcyu-frontend
+- Không commit file `.env`.
+- Không hard-code token, Google Client ID hoặc URL môi trường vào code.
+- Luôn gọi API qua gateway `VITE_API_BASE_URL=http://localhost:8080`.
+- WebSocket chat dùng `VITE_CHAT_WS_URL=ws://localhost:8080/ws/chat`.
+- Nếu login báo `Network Error`, kiểm tra backend gateway trước: `http://localhost:8080/api/health`.
+- Nếu đổi `.env`, cần restart `npm run dev`; riêng Docker cần build lại frontend.
+- Không mock dữ liệu thay API thật khi backend đang chạy.

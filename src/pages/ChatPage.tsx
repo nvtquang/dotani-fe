@@ -288,11 +288,11 @@ export const ChatPage = () => {
             <p className="page-description chat-connection">
               {isConnected ? (
                 <>
-                  <Wifi size={14} aria-hidden="true" /> Đang kết nối realtime
+                  <Wifi size={14} aria-hidden="true" /> Trực tuyến 
                 </>
               ) : (
                 <>
-                  <WifiOff size={14} aria-hidden="true" /> Đang chờ kết nối
+                  <WifiOff size={14} aria-hidden="true" /> Ngoại tuyến
                 </>
               )}
             </p>

@@ -39,7 +39,7 @@ export const StatusBadge = ({ value, label }: { value?: string | null; label?: s
           ? 'red'
           : 'gray';
 
-  return <Badge tone={tone}>{label ?? normalized}</Badge>;
+  return <Badge tone={tone}>{label ?? (normalized === 'UNKNOWN' ? 'Không xác định' : normalized)}</Badge>;
 };
 
 export const EmptyState = ({

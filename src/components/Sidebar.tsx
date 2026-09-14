@@ -57,7 +57,7 @@ export const Sidebar = ({ items, isOpen, onClose }: SidebarProps) => {
           </div>
         </Link>
 
-        <nav className="nav-list" aria-label="Main navigation">
+        <nav className="nav-list" aria-label="Điều hướng chính">
           {groups.map((group) => {
             const groupItems = items.filter((item) => item.group === group.key);
 

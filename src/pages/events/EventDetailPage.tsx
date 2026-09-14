@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil } from 'lucide-react';
+import { ArrowLeft, Pencil, X } from 'lucide-react';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
-import { Card, EmptyState, LoadingSkeleton, PageHeader, StatusBadge } from '../../components/ui';
+import { Card, EmptyState, LoadingSkeleton, PageHeader, StatusBadge, UserAvatar } from '../../components/ui';
 import { EventForm } from '../../features/events/EventForm';
 import {
   useDeleteEvent,
@@ -13,14 +13,22 @@ import {
   useUpdateEvent,
   useUpdateParticipation,
 } from '../../hooks/useEvents';
-import { useMemberNameMap } from '../../hooks/useMembers';
+import { useMember, useMemberNameMap } from '../../hooks/useMembers';
 import { useOrganizations } from '../../hooks/useOrganizations';
 import { useAuth } from '../../stores/AuthContext';
 import type { ApiError } from '../../types/api';
 import type { EventFormValues, ParticipationStatus } from '../../types/event';
-import { eventStatusLabel, eventTypeLabel, participationStatusLabel } from '../../utils/labels';
+import {
+  eventStatusLabel,
+  eventTypeLabel,
+  genderLabel,
+  memberStatusLabel,
+  participationStatusLabel,
+  roleLabel,
+} from '../../utils/labels';
 import { formatDateTime } from '../../utils/dateTime';
 import { toApiError } from '../../utils/apiError';
+import { resolveAssetUrl } from '../../utils/assetUrl';
 
 const canManageEvents = (role: string | null) => role === 'WARD_SECRETARY' || role === 'WARD_DEPUTY_SECRETARY';
 
@@ -32,6 +40,7 @@ export const EventDetailPage = () => {
   const navigate = useNavigate();
   const { role, user } = useAuth();
   const [formError, setFormError] = useState<ApiError | null>(null);
+  const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   const isEditing = searchParams.get('mode') === 'edit';
   const canManage = canManageEvents(role);
 
@@ -43,6 +52,7 @@ export const EventDetailPage = () => {
   const updateEvent = useUpdateEvent(id);
   const deleteEvent = useDeleteEvent();
   const updateParticipation = useUpdateParticipation(id);
+  const selectedParticipantQuery = useMember(selectedParticipantId ?? '');
 
   const organizations = useMemo(
     () => (organizationsQuery.data ?? []).filter((organization) => organization.type === 'YOUTH_UNION_BRANCH'),
@@ -109,6 +119,7 @@ export const EventDetailPage = () => {
   const participantCount = summary.going + summary.notGoing + summary.undecided;
   const eventOrganizationName =
     organizationsQuery.data?.find((organization) => organization.id === event.organizationId)?.name ?? 'Chưa có TDP';
+  const selectedParticipant = selectedParticipantQuery.data;
 
   return (
     <div className="page-stack">
@@ -258,7 +269,15 @@ export const EventDetailPage = () => {
                     <tbody>
                       {(participantsQuery.data ?? []).map((participant) => (
                         <tr key={participant.id}>
-                          <td>{participantNameMap[participant.memberId] ?? 'Đoàn viên'}</td>
+                          <td>
+                            <button
+                              className="participant-profile-button"
+                              type="button"
+                              onClick={() => setSelectedParticipantId(participant.memberId)}
+                            >
+                              {participantNameMap[participant.memberId] ?? 'Đoàn viên'}
+                            </button>
+                          </td>
                           <td>
                             <StatusBadge value={participant.status} label={participationStatusLabel[participant.status]} />
                           </td>
@@ -277,6 +296,87 @@ export const EventDetailPage = () => {
                 </div>
               )}
             </Card>
+          )}
+
+          {selectedParticipantId && (
+            <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Hồ sơ đoàn viên">
+              <Card className="profile-modal">
+                <button
+                  className="icon-button modal-close-button"
+                  type="button"
+                  onClick={() => setSelectedParticipantId(null)}
+                  aria-label="Đóng hồ sơ"
+                >
+                  <X size={18} aria-hidden="true" />
+                </button>
+
+                {selectedParticipantQuery.isLoading && <LoadingSkeleton rows={5} />}
+
+                {selectedParticipantQuery.error && (
+                  <section className="error-box">{toApiError(selectedParticipantQuery.error).message}</section>
+                )}
+
+                {selectedParticipant && (
+                  <>
+                    <div className="profile-modal-header">
+                      <UserAvatar
+                        name={selectedParticipant.fullName}
+                        src={resolveAssetUrl(selectedParticipant.avatarUrl)}
+                        size="lg"
+                      />
+                      <div>
+                        <p className="page-eyebrow">Hồ sơ đoàn viên</p>
+                        <h2>{selectedParticipant.fullName}</h2>
+                        <p>{selectedParticipant.organizationName || 'Chưa có TDP'}</p>
+                        <div className="form-actions section-gap">
+                          <StatusBadge
+                            value={selectedParticipant.memberStatus}
+                            label={memberStatusLabel[selectedParticipant.memberStatus]}
+                          />
+                          <StatusBadge
+                            value={selectedParticipant.memberRole}
+                            label={roleLabel[selectedParticipant.memberRole] ?? selectedParticipant.memberRole}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="detail-grid profile-modal-detail">
+                      <div>
+                        <span>Email</span>
+                        <strong>{selectedParticipant.email || '-'}</strong>
+                      </div>
+                      <div>
+                        <span>Số điện thoại</span>
+                        <strong>{selectedParticipant.phone || '-'}</strong>
+                      </div>
+                      <div>
+                        <span>Ngày sinh</span>
+                        <strong>{selectedParticipant.dateOfBirth || '-'}</strong>
+                      </div>
+                      <div>
+                        <span>Giới tính</span>
+                        <strong>
+                          {selectedParticipant.gender ? genderLabel[selectedParticipant.gender] : '-'}
+                        </strong>
+                      </div>
+                      <div>
+                        <span>Ngày vào Đoàn</span>
+                        <strong>{selectedParticipant.youthUnionJoinDate || '-'}</strong>
+                      </div>
+                      <div>
+                        <span>Tổ dân phố</span>
+                        <strong>{selectedParticipant.organizationName || 'Chưa có TDP'}</strong>
+                      </div>
+                      <div className="detail-wide">
+                        <span>Địa chỉ</span>
+                        <strong>{selectedParticipant.address || '-'}</strong>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </Card>
+            </div>
           )}
         </>
       )}

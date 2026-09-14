@@ -12,7 +12,7 @@ import { useAuth } from '../../stores/AuthContext';
 import type { ApiError } from '../../types/api';
 import type { MemberFormValues, MemberRole } from '../../types/member';
 import { resolveAssetUrl } from '../../utils/assetUrl';
-import { memberStatusLabel, roleLabel } from '../../utils/labels';
+import { genderLabel, memberStatusLabel, roleLabel } from '../../utils/labels';
 import { toApiError } from '../../utils/apiError';
 
 const isTdpOfficer = (role: string | null) => role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY';
@@ -194,7 +194,7 @@ export const MemberDetailPage = () => {
             </div>
             <div>
               <span>Giới tính</span>
-              <strong>{member.gender || '-'}</strong>
+              <strong>{member.gender ? genderLabel[member.gender] : '-'}</strong>
             </div>
             <div>
               <span>Tổ dân phố</span>

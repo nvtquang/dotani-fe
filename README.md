@@ -51,12 +51,20 @@ Nội dung mặc định:
 ```env
 VITE_API_BASE_URL=http://localhost:8080
 VITE_CHAT_WS_URL=ws://localhost:8080/ws/chat
+VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
 ```
 
 Ý nghĩa:
 
 - `VITE_API_BASE_URL`: REST API qua `api-gateway`.
 - `VITE_CHAT_WS_URL`: WebSocket/STOMP chat qua `api-gateway`.
+- `VITE_GOOGLE_CLIENT_ID`: Google OAuth Web Client ID de hien nut dang nhap Google.
+
+Khi tao Google OAuth Client, them JavaScript origin:
+
+```text
+http://localhost:5173
+```
 
 ## Cài đặt
 

@@ -13,6 +13,7 @@ export const RegisterPage = () => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [password, setPassword] = useState('');
   const [organizationId, setOrganizationId] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -34,6 +35,7 @@ export const RegisterPage = () => {
         fullName,
         email,
         phone: phone || undefined,
+        dateOfBirth: dateOfBirth || undefined,
         password,
         organizationId: selectedOrganizationId,
       });
@@ -102,6 +104,14 @@ export const RegisterPage = () => {
             maxLength={30}
             value={phone}
             onChange={(event) => setPhone(event.target.value)}
+          />
+        </label>
+        <label>
+          Ngày sinh
+          <input
+            type="date"
+            value={dateOfBirth}
+            onChange={(event) => setDateOfBirth(event.target.value)}
           />
         </label>
         <label>

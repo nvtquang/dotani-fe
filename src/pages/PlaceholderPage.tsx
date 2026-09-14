@@ -5,6 +5,6 @@ type PlaceholderPageProps = {
 export const PlaceholderPage = ({ title }: PlaceholderPageProps) => (
   <>
     <h1 className="page-title">{title}</h1>
-    <section className="surface">Skeleton page da san sang de ket noi API.</section>
+    <section className="surface">Trang khung đã sẵn sàng kết nối API.</section>
   </>
 );

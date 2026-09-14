@@ -1,6 +1,6 @@
 import { httpClient } from '../api/httpClient';
 import { tokenStorage } from '../api/tokenStorage';
-import type { AuthResponse, AuthUser, LoginRequest, RegisterRequest } from '../types/auth';
+import type { AuthResponse, AuthUser, GoogleLoginRequest, LoginRequest, RegisterRequest } from '../types/auth';
 
 export const authService = {
   login: async (payload: LoginRequest) => {
@@ -11,6 +11,12 @@ export const authService = {
   },
   register: async (payload: RegisterRequest) => {
     const { data } = await httpClient.post<AuthResponse>('/api/auth/register', payload);
+    tokenStorage.setAccessToken(data.accessToken);
+    tokenStorage.setRefreshToken(data.refreshToken);
+    return data;
+  },
+  loginWithGoogle: async (payload: GoogleLoginRequest) => {
+    const { data } = await httpClient.post<AuthResponse>('/api/auth/google', payload);
     tokenStorage.setAccessToken(data.accessToken);
     tokenStorage.setRefreshToken(data.refreshToken);
     return data;

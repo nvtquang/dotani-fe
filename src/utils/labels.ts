@@ -1,5 +1,5 @@
 import type { Role } from '../types/api';
-import type { MemberRole, MemberStatus } from '../types/member';
+import type { Gender, MemberRole, MemberStatus } from '../types/member';
 import type { EventStatus, EventType, ParticipationStatus } from '../types/event';
 import type { PostStatus, PostType } from '../types/post';
 
@@ -15,6 +15,12 @@ export const memberStatusLabel: Record<MemberStatus, string> = {
   ACTIVE: 'Đang hoạt động',
   PENDING: 'Chờ duyệt',
   INACTIVE: 'Không hoạt động',
+};
+
+export const genderLabel: Record<Gender, string> = {
+  MALE: 'Nam',
+  FEMALE: 'Nữ',
+  OTHER: 'Khác',
 };
 
 export const eventTypeLabel: Record<EventType, string> = {

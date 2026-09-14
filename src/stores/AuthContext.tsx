@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { authService } from '../services/authService';
 import { tokenStorage } from '../api/tokenStorage';
-import type { AuthUser, LoginRequest, RegisterRequest } from '../types/auth';
+import type { AuthUser, GoogleLoginRequest, LoginRequest, RegisterRequest } from '../types/auth';
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -21,6 +21,7 @@ type AuthContextValue = {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (payload: LoginRequest) => Promise<void>;
+  loginWithGoogle: (payload: GoogleLoginRequest) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<void>;
   logout: () => void;
   reloadMe: () => Promise<AuthUser | null>;
@@ -98,6 +99,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     [reloadMe],
   );
 
+  const loginWithGoogle = useCallback(
+    async (payload: GoogleLoginRequest) => {
+      setIsLoading(true);
+      try {
+        await authService.loginWithGoogle(payload);
+        await reloadMe();
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [reloadMe],
+  );
+
   const logout = useCallback(() => {
     authService.logout();
     setUser(null);
@@ -116,11 +130,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       isAuthenticated: Boolean(user),
       isLoading,
       login,
+      loginWithGoogle,
       register,
       logout,
       reloadMe,
     }),
-    [isLoading, login, logout, register, reloadMe, user],
+    [isLoading, login, loginWithGoogle, logout, register, reloadMe, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

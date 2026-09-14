@@ -23,11 +23,20 @@ export type LoginRequest = {
   password: string;
 };
 
+export type GoogleLoginRequest = {
+  idToken: string;
+  fullName: string;
+  phone: string;
+  dateOfBirth: string;
+  organizationId: string;
+};
+
 export type RegisterRequest = {
   username: string;
   fullName: string;
   email: string;
   password: string;
   phone?: string;
+  dateOfBirth?: string;
   organizationId: string;
 };

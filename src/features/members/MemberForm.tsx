@@ -168,7 +168,7 @@ export const MemberForm = ({
       </label>
 
       <label>
-        Avatar URL
+        Đường dẫn ảnh đại diện
         <input
           maxLength={1000}
           value={values.avatarUrl ?? ''}

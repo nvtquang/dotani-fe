@@ -1,8 +1,8 @@
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { QrCode, Upload } from 'lucide-react';
+import { httpClient } from '../../api/httpClient';
 import { EmptyState } from '../../components/ui';
 import type { BankingFormValues, BankingInfo } from '../../types/banking';
-import { resolveAssetUrl } from '../../utils/assetUrl';
 
 type BankingSectionProps = {
   title?: string;
@@ -41,7 +41,7 @@ export const BankingSection = ({
     accountNumber: banking?.accountNumber ?? '',
     accountHolderName: banking?.accountHolderName ?? '',
   });
-  const qrUrl = resolveAssetUrl(banking?.bankQrImageUrl);
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setValues({
@@ -51,6 +51,38 @@ export const BankingSection = ({
       accountHolderName: banking?.accountHolderName ?? '',
     });
   }, [banking]);
+
+  useEffect(() => {
+    let objectUrl: string | null = null;
+    let isActive = true;
+
+    setQrUrl(null);
+    if (!banking?.bankQrImageUrl) {
+      return undefined;
+    }
+
+    httpClient
+      .get<Blob>(banking.bankQrImageUrl, { responseType: 'blob' })
+      .then((response) => {
+        if (!isActive) {
+          return;
+        }
+        objectUrl = URL.createObjectURL(response.data);
+        setQrUrl(objectUrl);
+      })
+      .catch(() => {
+        if (isActive) {
+          setQrUrl(null);
+        }
+      });
+
+    return () => {
+      isActive = false;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [banking?.bankQrImageUrl]);
 
   const updateField = (field: keyof BankingFormValues, value: string) => {
     setValues((current) => ({ ...current, [field]: value }));

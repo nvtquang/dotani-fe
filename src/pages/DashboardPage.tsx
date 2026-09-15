@@ -168,7 +168,7 @@ export const DashboardPage = () => {
           <Card className="feed-profile-card">
             <UserAvatar name={displayName} src={avatarUrl} size="md" />
             <div>
-              <strong>{displayName ?? 'HCMCYU'}</strong>
+              <strong>{displayName ?? 'DOTANI'}</strong>
               <span>{user?.role ? roleLabel[user.role] : 'Đoàn viên'}</span>
             </div>
           </Card>

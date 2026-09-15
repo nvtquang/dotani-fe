@@ -3,7 +3,6 @@ import {
   Bell,
   CalendarDays,
   FileText,
-  Home,
   Landmark,
   LayoutDashboard,
   LogOut,
@@ -13,6 +12,7 @@ import {
   UserRound,
   UsersRound,
 } from 'lucide-react';
+import dotaniLogo from '../assets/dotani-logo.png';
 import { useAuth } from '../stores/AuthContext';
 import type { NavigationItem } from '../types/navigation';
 
@@ -49,10 +49,10 @@ export const Sidebar = ({ items, isOpen, onClose }: SidebarProps) => {
       <aside className={isOpen ? 'sidebar open' : 'sidebar'}>
         <Link className="brand" to="/dashboard" onClick={onClose}>
           <div className="brand-mark">
-            <Home size={22} aria-hidden="true" />
+            <img src={dotaniLogo} alt="DOTANI" />
           </div>
           <div>
-            <strong>HCMCYU</strong>
+            <strong>DOTANI</strong>
             <span>Phường Thượng Cát</span>
           </div>
         </Link>

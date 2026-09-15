@@ -4,6 +4,7 @@ export type Conversation = {
   id: string;
   type: ConversationType;
   title?: string | null;
+  avatarUrl?: string | null;
   createdBy?: string | null;
   memberIds: string[];
   memberNames?: Record<string, string>;
@@ -23,5 +24,10 @@ export type Message = {
   senderId: string;
   senderName?: string | null;
   content: string;
+  attachmentUrl?: string | null;
+  attachmentName?: string | null;
+  attachmentContentType?: string | null;
+  attachmentSize?: number | null;
+  attachmentKind?: 'IMAGE' | 'FILE' | null;
   createdAt: string;
 };

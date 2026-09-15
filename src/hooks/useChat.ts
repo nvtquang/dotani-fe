@@ -52,6 +52,24 @@ export const useRemoveConversationMember = (conversationId: string) => {
   });
 };
 
+export const useUploadChatAttachment = (conversationId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => chatService.uploadAttachment(conversationId, file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: chatKeys.messages(conversationId, 0) }),
+  });
+};
+
+export const useUpdateGroupAvatar = (conversationId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (file: File) => chatService.updateGroupAvatar(conversationId, file),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: chatKeys.conversations() }),
+  });
+};
+
 type UseChatSocketArgs = {
   conversationId: string | null;
   onMessage: (message: Message) => void;
@@ -133,4 +151,3 @@ export const useChatSocket = ({ conversationId, onMessage, onError }: UseChatSoc
 
   return { isConnected, sendMessage };
 };
-

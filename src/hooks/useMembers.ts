@@ -1,7 +1,7 @@
 import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { memberService, type ProfileFormValues } from '../services/memberService';
 import type { BankingFormValues } from '../types/banking';
-import type { MemberFilters, MemberFormValues, MemberRole } from '../types/member';
+import type { Member, MemberFilters, MemberFormValues, MemberRole } from '../types/member';
 
 export const memberKeys = {
   all: ['members'] as const,
@@ -89,6 +89,26 @@ export const useMemberNameMap = (ids: string[]) => {
 
   return uniqueIds.reduce<Record<string, string>>((result, id, index) => {
     result[id] = queries[index]?.data?.fullName ?? 'Đoàn viên';
+    return result;
+  }, {});
+};
+
+export const useMemberMap = (ids: string[]) => {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
+  const queries = useQueries({
+    queries: uniqueIds.map((id) => ({
+      queryKey: memberKeys.detail(id),
+      queryFn: () => memberService.findById(id),
+      enabled: Boolean(id),
+      staleTime: 5 * 60 * 1000,
+    })),
+  });
+
+  return uniqueIds.reduce<Record<string, Member>>((result, id, index) => {
+    const member = queries[index]?.data;
+    if (member) {
+      result[id] = member;
+    }
     return result;
   }, {});
 };

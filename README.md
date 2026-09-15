@@ -1,12 +1,12 @@
-# HCMCYU Frontend
+# DOTANI Frontend
 
-Frontend React cho hệ thống website quản lý đoàn viên Đoàn TNCS Hồ Chí Minh Phường Thượng Cát.
+Frontend React cho website DOTANI - hệ thống quản lý đoàn viên Đoàn TNCS Hồ Chí Minh Phường Thượng Cát.
 
 Backend repository: https://github.com/nvtquang/youth-union-management.git
 
 ## Mô tả
 
-Frontend cung cấp giao diện quản lý hồ sơ đoàn viên, tổ dân phố, sự kiện, bài viết/báo cáo hoạt động, chat realtime, thông báo, QR Banking cá nhân và dashboard dòng thời gian.
+DOTANI cung cấp giao diện quản lý hồ sơ đoàn viên, tổ dân phố, sự kiện, bài viết/báo cáo hoạt động, chat realtime, thông báo, QR Banking cá nhân và dashboard dòng thời gian.
 
 Frontend chỉ xử lý trải nghiệm người dùng và ẩn/hiện giao diện theo role. Bảo mật thật sự vẫn do backend enforce bằng JWT, RBAC và organization scope.
 

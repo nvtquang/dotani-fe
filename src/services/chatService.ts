@@ -34,5 +34,20 @@ export const chatService = {
   removeMember: async (conversationId: string, memberId: string) => {
     await httpClient.delete(`/api/chat/conversations/${conversationId}/members/${memberId}`);
   },
+  uploadAttachment: async (conversationId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await httpClient.post<Message>(`/api/chat/conversations/${conversationId}/messages/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
+  updateGroupAvatar: async (conversationId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await httpClient.patch<Conversation>(`/api/chat/conversations/${conversationId}/avatar`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data;
+  },
 };
-

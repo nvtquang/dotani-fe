@@ -173,7 +173,7 @@ export const LoginPage = () => {
 
   return (
     <>
-      <p className="page-eyebrow">HCMCYU Thượng Cát</p>
+      <p className="page-eyebrow">DOTANI Thượng Cát</p>
       <h1 className="page-title">Đăng nhập hệ thống</h1>
       <p className="page-description">Quản lý đoàn viên, sự kiện, thông báo và hoạt động Đoàn.</p>
 

@@ -2,7 +2,7 @@
 
 Frontend React cho website DOTANI - hệ thống quản lý đoàn viên Đoàn TNCS Hồ Chí Minh Phường Thượng Cát.
 
-Backend repository: https://github.com/nvtquang/youth-union-management.git
+Backend repository: https://github.com/nvtquang/dotani-be.git
 
 ## Mô tả
 
@@ -61,8 +61,7 @@ Clone frontend:
 
 ```powershell
 cd D:\Java
-git clone https://github.com/nvtquang/hcmcyu-frontend.git HCMCYU-frontend
-cd D:\Java\HCMCYU-frontend
+git clone https://github.com/nvtquang/dotani-fe.git
 ```
 
 Cài package:

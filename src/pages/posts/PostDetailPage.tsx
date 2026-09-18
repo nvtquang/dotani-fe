@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, Upload } from 'lucide-react';
+import { ArrowLeft, Paperclip, Pencil, Upload } from 'lucide-react';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
 import { Card, EmptyState, LoadingSkeleton, PageHeader, StatusBadge } from '../../components/ui';
 import { PostForm } from '../../features/posts/PostForm';
@@ -86,7 +86,7 @@ export const PostDetailPage = () => {
   };
 
   const handleDeleteImage = async (imageId: string) => {
-    if (!window.confirm('Xóa ảnh này?')) {
+    if (!window.confirm('Xóa tệp đính kèm này?')) {
       return;
     }
 
@@ -175,8 +175,8 @@ export const PostDetailPage = () => {
       <Card>
         <div className="section-heading">
           <div>
-            <h2>Ảnh bài viết</h2>
-            <p className="page-description">Upload nhiều ảnh, backend validate định dạng và dung lượng.</p>
+            <h2>Tệp đính kèm</h2>
+            <p className="page-description">Upload nhiều ảnh hoặc tài liệu, backend validate định dạng và dung lượng.</p>
           </div>
           {canManage && (
             <>
@@ -185,7 +185,7 @@ export const PostDetailPage = () => {
                 className="visually-hidden"
                 type="file"
                 multiple
-                accept="image/jpeg,image/png,image/webp"
+                accept="image/jpeg,image/png,image/webp,.pdf,.txt,.doc,.docx,.xls,.xlsx"
                 onChange={(event) => handleUploadImages(event.target.files)}
               />
               <button
@@ -195,7 +195,7 @@ export const PostDetailPage = () => {
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Upload size={17} aria-hidden="true" />
-                Upload ảnh
+                Đính kèm
               </button>
             </>
           )}
@@ -204,22 +204,29 @@ export const PostDetailPage = () => {
         <div className="image-grid">
           {(post.images ?? []).map((image) => {
             const imageUrl = resolveAssetUrl(image.imageUrl);
+            const isImage = !image.attachmentKind || image.attachmentKind === 'IMAGE';
             return (
               <div className="image-tile" key={image.id}>
-                {imageUrl && (
+                {imageUrl && isImage && (
                   <button type="button" onClick={() => setOpenImageUrl(imageUrl)}>
-                    <img src={imageUrl} alt="Ảnh bài viết" />
+                    <img src={imageUrl} alt={image.fileName ?? 'Ảnh bài viết'} />
                   </button>
+                )}
+                {imageUrl && !isImage && (
+                  <a className="chat-file-link" href={imageUrl} target="_blank" rel="noreferrer">
+                    <Paperclip size={16} aria-hidden="true" />
+                    <span>{image.fileName ?? 'Tệp đính kèm'}</span>
+                  </a>
                 )}
                 {canManage && (
                   <button className="danger-link" type="button" onClick={() => handleDeleteImage(image.id)}>
-                    Xóa ảnh
+                    Xóa
                   </button>
                 )}
               </div>
             );
           })}
-          {(post.images ?? []).length === 0 && <EmptyState title="Chưa có ảnh" />}
+          {(post.images ?? []).length === 0 && <EmptyState title="Chưa có tệp đính kèm" />}
         </div>
       </Card>
 

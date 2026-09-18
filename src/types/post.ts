@@ -5,6 +5,8 @@ export type PostStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
 export type PostImage = {
   id: string;
   imageUrl: string;
+  attachmentKind?: 'IMAGE' | 'FILE' | string;
+  fileName?: string | null;
   createdAt?: string;
 };
 
@@ -36,4 +38,3 @@ export type PostFilters = {
   page: number;
   size: number;
 };
-

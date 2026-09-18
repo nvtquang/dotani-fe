@@ -1,16 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, X } from 'lucide-react';
+import { ArrowLeft, Paperclip, Pencil, Upload, X } from 'lucide-react';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
 import { Card, EmptyState, LoadingSkeleton, PageHeader, StatusBadge, UserAvatar } from '../../components/ui';
 import { EventForm } from '../../features/events/EventForm';
 import {
   useDeleteEvent,
+  useDeleteEventAttachment,
   useEvent,
   useMyEventParticipations,
   useParticipants,
   useParticipationSummary,
   useUpdateEvent,
+  useUploadEventAttachments,
   useUpdateParticipation,
 } from '../../hooks/useEvents';
 import { useMember, useMemberNameMap } from '../../hooks/useMembers';
@@ -38,6 +40,7 @@ export const EventDetailPage = () => {
   const { id = '' } = useParams();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
+  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const { role, user } = useAuth();
   const [formError, setFormError] = useState<ApiError | null>(null);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
@@ -51,6 +54,8 @@ export const EventDetailPage = () => {
   const organizationsQuery = useOrganizations();
   const updateEvent = useUpdateEvent(id);
   const deleteEvent = useDeleteEvent();
+  const uploadAttachments = useUploadEventAttachments(id);
+  const deleteAttachment = useDeleteEventAttachment(id);
   const updateParticipation = useUpdateParticipation(id);
   const selectedParticipantQuery = useMember(selectedParticipantId ?? '');
 
@@ -93,6 +98,36 @@ export const EventDetailPage = () => {
     setFormError(null);
     try {
       await updateParticipation.mutateAsync(status);
+    } catch (error) {
+      setFormError(toApiError(error));
+    }
+  };
+
+  const handleUploadAttachments = async (files: FileList | null) => {
+    if (!files?.length) {
+      return;
+    }
+
+    setFormError(null);
+    try {
+      await uploadAttachments.mutateAsync(Array.from(files));
+    } catch (error) {
+      setFormError(toApiError(error));
+    } finally {
+      if (attachmentInputRef.current) {
+        attachmentInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId: string) => {
+    if (!window.confirm('Xóa tệp đính kèm này?')) {
+      return;
+    }
+
+    setFormError(null);
+    try {
+      await deleteAttachment.mutateAsync(attachmentId);
     } catch (error) {
       setFormError(toApiError(error));
     }
@@ -221,6 +256,68 @@ export const EventDetailPage = () => {
               <strong>{summary.undecided}</strong>
             </Card>
           </section>
+
+          <Card>
+            <div className="section-heading">
+              <div>
+                <h2>Tệp đính kèm</h2>
+                <p className="page-description">Ảnh và tài liệu liên quan đến sự kiện.</p>
+              </div>
+              {canManage && (
+                <>
+                  <input
+                    ref={attachmentInputRef}
+                    className="visually-hidden"
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,.pdf,.txt,.doc,.docx,.xls,.xlsx"
+                    onChange={(event) => handleUploadAttachments(event.target.files)}
+                  />
+                  <button
+                    className="primary-button inline-button"
+                    type="button"
+                    disabled={uploadAttachments.isPending}
+                    onClick={() => attachmentInputRef.current?.click()}
+                  >
+                    <Upload size={17} aria-hidden="true" />
+                    Đính kèm
+                  </button>
+                </>
+              )}
+            </div>
+
+            <div className="image-grid">
+              {(event.attachments ?? []).map((attachment) => {
+                const fileUrl = resolveAssetUrl(attachment.fileUrl);
+                const isImage = attachment.attachmentKind === 'IMAGE';
+                return (
+                  <div className="image-tile" key={attachment.id}>
+                    {isImage && fileUrl ? (
+                      <a href={fileUrl} target="_blank" rel="noreferrer">
+                        <img src={fileUrl} alt={attachment.fileName ?? 'Ảnh sự kiện'} />
+                      </a>
+                    ) : (
+                      <a className="chat-file-link" href={fileUrl ?? '#'} target="_blank" rel="noreferrer">
+                        <Paperclip size={16} aria-hidden="true" />
+                        <span>{attachment.fileName ?? 'Tệp đính kèm'}</span>
+                      </a>
+                    )}
+                    {canManage && (
+                      <button
+                        className="danger-link"
+                        type="button"
+                        disabled={deleteAttachment.isPending}
+                        onClick={() => handleDeleteAttachment(attachment.id)}
+                      >
+                        Xóa
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+              {(event.attachments ?? []).length === 0 && <EmptyState title="Chưa có tệp đính kèm" />}
+            </div>
+          </Card>
 
           {role === 'MEMBER' && (
             <Card>

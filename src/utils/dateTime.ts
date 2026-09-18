@@ -17,3 +17,10 @@ export const toDateTimeLocalValue = (value?: string | null) => {
   return value.slice(0, 16);
 };
 
+export const toDateInputValue = (value?: string | null) => {
+  if (!value) {
+    return '';
+  }
+
+  return value.slice(0, 10);
+};

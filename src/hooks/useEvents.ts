@@ -54,6 +54,30 @@ export const useDeleteEvent = () => {
   });
 };
 
+export const useUploadEventAttachments = (id: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (files: File[]) => eventService.uploadAttachments(id, files),
+    onSuccess: (event) => {
+      queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      queryClient.setQueryData(eventKeys.detail(id), event);
+    },
+  });
+};
+
+export const useDeleteEventAttachment = (eventId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (attachmentId: string) => eventService.deleteAttachment(eventId, attachmentId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+    },
+  });
+};
+
 export const useParticipationSummary = (eventId: string) =>
   useQuery({
     queryKey: eventKeys.summary(eventId),
@@ -86,4 +110,3 @@ export const useUpdateParticipation = (eventId: string) => {
     },
   });
 };
-

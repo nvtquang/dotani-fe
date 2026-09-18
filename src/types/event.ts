@@ -17,8 +17,17 @@ export type Event = {
   maxParticipants?: number | null;
   status: EventStatus;
   createdBy?: string | null;
+  attachments?: EventAttachment[];
   createdAt?: string;
   updatedAt?: string;
+};
+
+export type EventAttachment = {
+  id: string;
+  fileUrl: string;
+  attachmentKind: 'IMAGE' | 'FILE' | string;
+  fileName?: string | null;
+  createdAt?: string;
 };
 
 export type EventFormValues = {
@@ -42,6 +51,7 @@ export type EventFilters = {
   upcoming?: boolean;
   page: number;
   size: number;
+  sort?: string;
 };
 
 export type EventParticipation = {
@@ -63,4 +73,3 @@ export type ParticipationSummary = {
   notGoing: number;
   undecided: number;
 };
-

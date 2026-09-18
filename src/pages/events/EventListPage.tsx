@@ -50,6 +50,7 @@ export const EventListPage = () => {
   );
   const fixedOrganizationId =
     role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY' ? user?.tdpId : undefined;
+  const formFixedOrganizationId = fixedOrganizationId ?? (organization || undefined);
   const canManage = canManageEvents(role);
 
   const filters: EventFilters = {
@@ -73,7 +74,7 @@ export const EventListPage = () => {
     try {
       await createEvent.mutateAsync({
         ...values,
-        organizationId: fixedOrganizationId ?? values.organizationId,
+        organizationId: formFixedOrganizationId ?? values.organizationId,
       });
       setIsCreateOpen(false);
     } catch (error) {
@@ -172,7 +173,7 @@ export const EventListPage = () => {
           </div>
           <EventForm
             organizations={organizations}
-            fixedOrganizationId={fixedOrganizationId}
+            fixedOrganizationId={formFixedOrganizationId}
             isSubmitting={createEvent.isPending}
             submitLabel="Tạo sự kiện"
             onSubmit={handleCreate}

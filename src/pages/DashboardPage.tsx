@@ -26,6 +26,7 @@ type FeedItem = {
   meta: string;
   location?: string | null;
   time?: string;
+  sortTime?: string;
   to: string;
   status: string;
   statusLabel: string;
@@ -62,6 +63,7 @@ const buildFeed = (
         meta: eventTypeLabel[event.type],
         location: event.location,
         time: event.startTime,
+        sortTime: event.createdAt ?? event.startTime,
         to: `/events/${event.id}`,
         status: event.status,
         statusLabel: eventStatusLabel[event.status],
@@ -79,6 +81,7 @@ const buildFeed = (
         description: post.content,
         meta: postTypeLabel[post.type],
         time: post.createdAt,
+        sortTime: post.createdAt,
         to: `/posts/${post.id}`,
         status: post.status,
         statusLabel: postStatusLabel[post.status],
@@ -96,8 +99,8 @@ const buildFeed = (
       }
     }
 
-    const leftTime = left.time ? new Date(left.time).getTime() : 0;
-    const rightTime = right.time ? new Date(right.time).getTime() : 0;
+    const leftTime = left.sortTime ? new Date(left.sortTime).getTime() : 0;
+    const rightTime = right.sortTime ? new Date(right.sortTime).getTime() : 0;
     return sort === 'oldest' ? leftTime - rightTime : rightTime - leftTime;
   });
 };
@@ -109,7 +112,7 @@ export const DashboardPage = () => {
   const displayName = profile?.fullName ?? user?.username;
   const avatarUrl = resolveAssetUrl(profile?.avatarUrl);
   const [feedSort, setFeedSort] = useState<FeedSort>('newest');
-  const eventsQuery = useEvents({ page: 0, size: 40, upcoming: false });
+  const eventsQuery = useEvents({ page: 0, size: 40, upcoming: false, sort: 'createdAt,desc' });
   const postsQuery = usePosts({ page: 0, size: 40 });
   const events = eventsQuery.data?.content ?? [];
   const posts = postsQuery.data?.content ?? [];

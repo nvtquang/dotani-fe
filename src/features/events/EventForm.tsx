@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import type { Event, EventFormValues, EventStatus, EventType } from '../../types/event';
 import type { OrganizationUnit } from '../../types/organization';
 import { eventStatusLabel, eventTypeLabel } from '../../utils/labels';
-import { toDateTimeLocalValue } from '../../utils/dateTime';
+import { toDateInputValue } from '../../utils/dateTime';
 
 type EventFormProps = {
   initialValue?: Event;
@@ -26,9 +26,9 @@ const toFormValues = (
   description: event?.description ?? '',
   type: event?.type ?? 'EVENT',
   location: event?.location ?? '',
-  startTime: toDateTimeLocalValue(event?.startTime),
-  endTime: toDateTimeLocalValue(event?.endTime),
-  registrationDeadline: toDateTimeLocalValue(event?.registrationDeadline),
+  startTime: toDateInputValue(event?.startTime),
+  endTime: toDateInputValue(event?.endTime),
+  registrationDeadline: toDateInputValue(event?.registrationDeadline),
   organizationId: fixedOrganizationId ?? event?.organizationId ?? defaultOrganizationId,
   maxParticipants: event?.maxParticipants?.toString() ?? '',
   status: event?.status ?? 'PUBLISHED',
@@ -86,7 +86,7 @@ export const EventForm = ({
         Bắt đầu
         <input
           required
-          type="datetime-local"
+          type="date"
           value={values.startTime}
           onChange={(event) => updateField('startTime', event.target.value)}
         />
@@ -95,7 +95,7 @@ export const EventForm = ({
         Kết thúc
         <input
           required
-          type="datetime-local"
+          type="date"
           value={values.endTime}
           onChange={(event) => updateField('endTime', event.target.value)}
         />
@@ -103,7 +103,7 @@ export const EventForm = ({
       <label>
         Hạn đăng ký
         <input
-          type="datetime-local"
+          type="date"
           value={values.registrationDeadline ?? ''}
           onChange={(event) => updateField('registrationDeadline', event.target.value)}
         />

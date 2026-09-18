@@ -437,7 +437,11 @@ export const ChatPage = () => {
                 onClick={() => setSelectedConversationId(conversation.id)}
                 title={title}
               >
-                <UserAvatar name={title} src={getMemberAvatar(directMemberId)} size="sm" />
+                <UserAvatar
+                  name={title}
+                  src={conversation.type === 'GROUP' ? resolveAssetUrl(conversation.avatarUrl) : getMemberAvatar(directMemberId)}
+                  size="sm"
+                />
                 <span className="conversation-copy">
                   <strong>{title}</strong>
                   <span>

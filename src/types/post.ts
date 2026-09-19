@@ -28,6 +28,7 @@ export type PostFormValues = {
   content: string;
   type: PostType;
   organizationId: string;
+  organizationIds?: string[];
   status: PostStatus;
 };
 

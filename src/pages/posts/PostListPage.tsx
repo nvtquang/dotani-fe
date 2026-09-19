@@ -48,6 +48,7 @@ export const PostListPage = () => {
   );
   const fixedOrganizationId =
     role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY' ? user?.tdpId : undefined;
+  const formFixedOrganizationId = fixedOrganizationId ?? (organization || undefined);
   const canManage = canManagePosts(role);
 
   const filters: PostFilters = {
@@ -71,10 +72,19 @@ export const PostListPage = () => {
   const handleCreate = async (values: PostFormValues) => {
     setFormError(null);
     try {
-      await createPost.mutateAsync({
-        ...values,
-        organizationId: fixedOrganizationId ?? values.organizationId,
-      });
+      const organizationIds = formFixedOrganizationId
+        ? [formFixedOrganizationId]
+        : values.organizationIds?.length
+          ? values.organizationIds
+          : [values.organizationId];
+
+      for (const organizationId of organizationIds) {
+        await createPost.mutateAsync({
+          ...values,
+          organizationId,
+          organizationIds: undefined,
+        });
+      }
       setIsCreateOpen(false);
     } catch (error) {
       setFormError(toApiError(error));
@@ -157,7 +167,8 @@ export const PostListPage = () => {
           </div>
           <PostForm
             organizations={organizations}
-            fixedOrganizationId={fixedOrganizationId}
+            fixedOrganizationId={formFixedOrganizationId}
+            allowMultipleOrganizations={!formFixedOrganizationId}
             isSubmitting={createPost.isPending}
             submitLabel="Tạo bài viết"
             onSubmit={handleCreate}

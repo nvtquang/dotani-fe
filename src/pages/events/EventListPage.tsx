@@ -72,10 +72,19 @@ export const EventListPage = () => {
   const handleCreate = async (values: EventFormValues) => {
     setFormError(null);
     try {
-      await createEvent.mutateAsync({
-        ...values,
-        organizationId: formFixedOrganizationId ?? values.organizationId,
-      });
+      const organizationIds = formFixedOrganizationId
+        ? [formFixedOrganizationId]
+        : values.organizationIds?.length
+          ? values.organizationIds
+          : [values.organizationId];
+
+      for (const organizationId of organizationIds) {
+        await createEvent.mutateAsync({
+          ...values,
+          organizationId,
+          organizationIds: undefined,
+        });
+      }
       setIsCreateOpen(false);
     } catch (error) {
       setFormError(toApiError(error));
@@ -174,6 +183,7 @@ export const EventListPage = () => {
           <EventForm
             organizations={organizations}
             fixedOrganizationId={formFixedOrganizationId}
+            allowMultipleOrganizations={!formFixedOrganizationId}
             isSubmitting={createEvent.isPending}
             submitLabel="Tạo sự kiện"
             onSubmit={handleCreate}

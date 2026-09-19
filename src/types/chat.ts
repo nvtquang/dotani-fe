@@ -8,6 +8,9 @@ export type Conversation = {
   createdBy?: string | null;
   memberIds: string[];
   memberNames?: Record<string, string>;
+  lastMessageAt?: string | null;
+  lastMessagePreview?: string | null;
+  unreadCount?: number;
   createdAt?: string;
   updatedAt?: string;
 };

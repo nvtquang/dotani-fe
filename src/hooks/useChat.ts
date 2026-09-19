@@ -1,5 +1,5 @@
 import { Client, type IMessage, type StompSubscription } from '@stomp/stompjs';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { env } from '../api/config';
 import { tokenStorage } from '../api/tokenStorage';
@@ -49,6 +49,22 @@ export const useRemoveConversationMember = (conversationId: string) => {
   return useMutation({
     mutationFn: (memberId: string) => chatService.removeMember(conversationId, memberId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: chatKeys.conversations() }),
+  });
+};
+
+export const useMarkConversationRead = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (conversationId: string) => chatService.markRead(conversationId),
+    onSuccess: (conversation) => {
+      queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+      queryClient.setQueryData(chatKeys.conversations(), (current: unknown) =>
+        Array.isArray(current)
+          ? current.map((item) => (item?.id === conversation.id ? conversation : item))
+          : current,
+      );
+    },
   });
 };
 
@@ -150,4 +166,76 @@ export const useChatSocket = ({ conversationId, onMessage, onError }: UseChatSoc
   };
 
   return { isConnected, sendMessage };
+};
+
+type UseChatOverviewSocketArgs = {
+  conversationIds: string[];
+  onMessage: (message: Message) => void;
+  onError?: (message: string) => void;
+};
+
+export const useChatOverviewSocket = ({ conversationIds, onMessage, onError }: UseChatOverviewSocketArgs) => {
+  const clientRef = useRef<Client | null>(null);
+  const subscriptionsRef = useRef<StompSubscription[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const sortedConversationIds = useMemo(() => conversationIds.slice().sort(), [conversationIds]);
+  const conversationKey = sortedConversationIds.join('|');
+
+  useEffect(() => {
+    const accessToken = tokenStorage.getAccessToken();
+
+    if (!accessToken) {
+      return;
+    }
+
+    const client = new Client({
+      brokerURL: env.chatWsUrl,
+      connectHeaders: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      reconnectDelay: 4000,
+      heartbeatIncoming: 10000,
+      heartbeatOutgoing: 10000,
+      debug: () => undefined,
+      onConnect: () => setIsConnected(true),
+      onDisconnect: () => setIsConnected(false),
+      onStompError: (frame) => onError?.(frame.headers.message ?? 'WebSocket STOMP error'),
+      onWebSocketClose: () => setIsConnected(false),
+      onWebSocketError: () => onError?.('Không thể kết nối WebSocket'),
+    });
+
+    clientRef.current = client;
+    client.activate();
+
+    return () => {
+      subscriptionsRef.current.forEach((subscription) => subscription.unsubscribe());
+      subscriptionsRef.current = [];
+      clientRef.current = null;
+      setIsConnected(false);
+      void client.deactivate();
+    };
+  }, [onError]);
+
+  useEffect(() => {
+    const client = clientRef.current;
+    subscriptionsRef.current.forEach((subscription) => subscription.unsubscribe());
+    subscriptionsRef.current = [];
+
+    if (!client || !client.connected || sortedConversationIds.length === 0) {
+      return;
+    }
+
+    subscriptionsRef.current = sortedConversationIds.map((conversationId) =>
+      client.subscribe(`/topic/conversations/${conversationId}`, (message: IMessage) => {
+        onMessage(JSON.parse(message.body) as Message);
+      }),
+    );
+
+    return () => {
+      subscriptionsRef.current.forEach((subscription) => subscription.unsubscribe());
+      subscriptionsRef.current = [];
+    };
+  }, [conversationKey, isConnected, onMessage, sortedConversationIds]);
+
+  return { isConnected };
 };

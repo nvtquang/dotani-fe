@@ -39,6 +39,7 @@ export type EventFormValues = {
   endTime: string;
   registrationDeadline?: string;
   organizationId: string;
+  organizationIds?: string[];
   maxParticipants?: string;
   status: EventStatus;
 };

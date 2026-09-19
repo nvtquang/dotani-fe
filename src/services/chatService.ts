@@ -11,6 +11,10 @@ export const chatService = {
     const { data } = await httpClient.get<Conversation>(`/api/chat/conversations/${id}`);
     return data;
   },
+  markRead: async (id: string) => {
+    const { data } = await httpClient.patch<Conversation>(`/api/chat/conversations/${id}/read`);
+    return data;
+  },
   messages: async (id: string, page: number, size: number) => {
     const { data } = await httpClient.get<PageResponse<Message>>(`/api/chat/conversations/${id}/messages`, {
       params: {

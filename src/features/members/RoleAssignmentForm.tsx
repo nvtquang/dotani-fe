@@ -95,9 +95,7 @@ export const RoleAssignmentForm = ({
         </label>
       )}
 
-      <div className="form-wide role-warning">
-        Frontend chỉ ẩn/hiện thao tác theo role để phục vụ giao diện. Backend vẫn enforce quyền thật.
-      </div>
+      
 
       <div className="form-actions form-wide">
         <button className="secondary-button inline-button" type="button" onClick={onCancel}>

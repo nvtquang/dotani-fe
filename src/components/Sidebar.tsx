@@ -1,4 +1,4 @@
-import { Link, NavLink } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import {
   Bell,
   CalendarDays,
@@ -13,6 +13,7 @@ import {
   UsersRound,
 } from 'lucide-react';
 import dotaniLogo from '../assets/dotani-logo.png';
+import { useChatUnread } from '../hooks/useChatUnread';
 import { useAuth } from '../stores/AuthContext';
 import type { NavigationItem } from '../types/navigation';
 
@@ -24,6 +25,8 @@ type SidebarProps = {
 
 export const Sidebar = ({ items, isOpen, onClose }: SidebarProps) => {
   const { logout } = useAuth();
+  const location = useLocation();
+  const { totalUnread } = useChatUnread({ enabled: !location.pathname.startsWith('/chat') });
   const groups = [
     { key: 'overview', label: 'Tổng quan' },
     { key: 'personal', label: 'Cá nhân' },
@@ -74,6 +77,9 @@ export const Sidebar = ({ items, isOpen, onClose }: SidebarProps) => {
                     <NavLink key={item.to} className="nav-link" to={item.to} onClick={onClose}>
                       <Icon size={18} aria-hidden="true" />
                       <span>{item.label}</span>
+                      {item.icon === 'chat' && totalUnread > 0 && (
+                        <strong className="nav-unread-badge">{totalUnread > 99 ? '99+' : totalUnread}</strong>
+                      )}
                     </NavLink>
                   );
                 })}

@@ -357,6 +357,27 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+.nav-unread-badge,
+.chat-unread-badge {
+  align-items: center;
+  background: var(--danger);
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-flex;
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  font-weight: 800;
+  height: 20px;
+  justify-content: center;
+  line-height: 1;
+  min-width: 20px;
+  padding: 0 6px;
+}
+
+.nav-unread-badge {
+  margin-left: auto;
+}
+
 .content {
   padding: 28px;
 }
@@ -689,6 +710,48 @@ textarea:focus-visible {
 
 .form-hint {
   margin: 0;
+}
+
+.form-label-row {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.organization-multi-select {
+  display: grid;
+  gap: 10px;
+}
+
+.organization-checkbox-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.organization-checkbox {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: var(--radius);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 42px;
+  padding: 9px 11px;
+}
+
+.organization-checkbox input {
+  min-height: auto;
+  width: auto;
+}
+
+.organization-checkbox span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .member-form textarea {
@@ -1117,7 +1180,7 @@ textarea:focus-visible {
   display: grid;
   flex: 0 0 68px;
   gap: 10px;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   height: 68px;
   max-height: 68px;
   min-height: 68px;
@@ -2001,6 +2064,15 @@ textarea:focus-visible {
   background: #ffffff;
   border: 1px solid #cbd5e1;
   color: var(--primary-dark);
+}
+
+.clear-selection-button {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+.clear-selection-button:hover {
+  background: #fff1f2;
 }
 
 .danger-button {

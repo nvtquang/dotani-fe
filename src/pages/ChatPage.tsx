@@ -1,10 +1,12 @@
-import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ImageIcon, LogOut, MessageCircle, Paperclip, Plus, Search, Send, UsersRound, Wifi, WifiOff, X } from 'lucide-react';
 import {
   useAddConversationMember,
+  useChatOverviewSocket,
   useChatSocket,
   useConversations,
   useCreateConversation,
+  useMarkConversationRead,
   useMessages,
   useRemoveConversationMember,
   useUpdateGroupAvatar,
@@ -156,11 +158,33 @@ export const ChatPage = () => {
   const [memberToAdd, setMemberToAdd] = useState<MemberDirectoryItem[]>([]);
   const [profileMemberId, setProfileMemberId] = useState<string | null>(null);
   const [isGroupDetailsOpen, setIsGroupDetailsOpen] = useState(false);
+  const [lastActivityByConversation, setLastActivityByConversation] = useState<Record<string, string>>({});
+  const messageHistoryRef = useRef<HTMLDivElement | null>(null);
 
   const selectedConversation = useMemo(
     () => conversationsQuery.data?.find((conversation) => conversation.id === selectedConversationId) ?? null,
     [conversationsQuery.data, selectedConversationId],
   );
+  const conversationIds = useMemo(
+    () => (conversationsQuery.data ?? []).map((conversation) => conversation.id),
+    [conversationsQuery.data],
+  );
+  const overviewConversationIds = useMemo(
+    () => conversationIds.filter((conversationId) => conversationId !== selectedConversationId),
+    [conversationIds, selectedConversationId],
+  );
+  const sortedConversations = useMemo(() => {
+    const activityTime = (conversation: Conversation) =>
+      new Date(
+        lastActivityByConversation[conversation.id] ??
+          conversation.lastMessageAt ??
+          conversation.updatedAt ??
+          conversation.createdAt ??
+          '1970-01-01T00:00:00',
+      ).getTime();
+
+    return [...(conversationsQuery.data ?? [])].sort((left, right) => activityTime(right) - activityTime(left));
+  }, [conversationsQuery.data, lastActivityByConversation]);
   const messagesQuery = useMessages(selectedConversationId, historyPage, historyPageSize);
   const visibleMemberIds = useMemo(() => {
     const ids = new Set<string>();
@@ -176,12 +200,21 @@ export const ChatPage = () => {
   const removeMember = useRemoveConversationMember(selectedConversationId ?? '');
   const uploadAttachment = useUploadChatAttachment(selectedConversationId ?? '');
   const updateGroupAvatar = useUpdateGroupAvatar(selectedConversationId ?? '');
+  const markConversationRead = useMarkConversationRead();
 
   useEffect(() => {
-    if (!selectedConversationId && conversationsQuery.data?.length) {
-      setSelectedConversationId(conversationsQuery.data[0].id);
+    if (!selectedConversationId && sortedConversations.length) {
+      setSelectedConversationId(sortedConversations[0].id);
     }
-  }, [conversationsQuery.data, selectedConversationId]);
+  }, [selectedConversationId, sortedConversations]);
+
+  useEffect(() => {
+    if (!selectedConversationId) {
+      return;
+    }
+
+    markConversationRead.mutate(selectedConversationId);
+  }, [selectedConversationId]);
 
   useEffect(() => {
     setHistoryPage(0);
@@ -197,17 +230,40 @@ export const ChatPage = () => {
   }, [conversationType, selectedMembers.length]);
 
   const handleSocketMessage = useCallback((message: Message) => {
+    setLastActivityByConversation((current) => ({
+      ...current,
+      [message.conversationId]: message.createdAt,
+    }));
+    if (user?.memberId && message.senderId !== user.memberId) {
+      markConversationRead.mutate(message.conversationId);
+    }
     setLiveMessages((current) => {
       if (current.some((item) => item.id === message.id)) {
         return current;
       }
       return [...current, message];
     });
-  }, []);
+  }, [markConversationRead, user?.memberId]);
+
+  const handleOverviewMessage = useCallback(
+    (message: Message) => {
+      setLastActivityByConversation((current) => ({
+        ...current,
+        [message.conversationId]: message.createdAt,
+      }));
+      void conversationsQuery.refetch();
+    },
+    [conversationsQuery],
+  );
 
   const { isConnected, sendMessage } = useChatSocket({
     conversationId: selectedConversationId,
     onMessage: handleSocketMessage,
+    onError: setError,
+  });
+  useChatOverviewSocket({
+    conversationIds: overviewConversationIds,
+    onMessage: handleOverviewMessage,
     onError: setError,
   });
 
@@ -225,6 +281,13 @@ export const ChatPage = () => {
       return true;
     });
   }, [historicalMessages, liveMessages]);
+
+  useEffect(() => {
+    const history = messageHistoryRef.current;
+    if (history) {
+      history.scrollTop = history.scrollHeight;
+    }
+  }, [mergedMessages.length, selectedConversationId]);
 
   const handleCreateConversation = async (event: FormEvent) => {
     event.preventDefault();
@@ -321,6 +384,10 @@ export const ChatPage = () => {
     setError(null);
     try {
       const uploaded = await uploadAttachment.mutateAsync(file);
+      setLastActivityByConversation((current) => ({
+        ...current,
+        [uploaded.conversationId]: uploaded.createdAt,
+      }));
       setLiveMessages((current) => (current.some((message) => message.id === uploaded.id) ? current : [...current, uploaded]));
     } catch (caught) {
       setError(toApiError(caught).message ?? 'Không thể gửi file');
@@ -424,11 +491,12 @@ export const ChatPage = () => {
 
         <div className="conversation-list">
           {conversationsQuery.isLoading && <LoadingSkeleton rows={5} />}
-          {(conversationsQuery.data ?? []).map((conversation) => {
+          {sortedConversations.map((conversation) => {
             const directMemberId = getDirectOtherMemberId(conversation);
             const title = directMemberId
               ? getMemberName(conversation, directMemberId)
               : conversationTitle(conversation, user?.memberId);
+            const unreadCount = conversation.unreadCount ?? 0;
             return (
               <button
                 className={conversation.id === selectedConversationId ? 'conversation-item active' : 'conversation-item'}
@@ -448,6 +516,7 @@ export const ChatPage = () => {
                     {conversation.type === 'GROUP' ? 'Nhóm' : 'Trực tiếp'} · {conversation.memberIds.length} thành viên
                   </span>
                 </span>
+                {unreadCount > 0 && <strong className="chat-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</strong>}
               </button>
             );
           })}
@@ -506,7 +575,7 @@ export const ChatPage = () => {
               )}
             </header>
 
-            <div className="message-history">
+            <div className="message-history" ref={messageHistoryRef}>
               <div className="history-actions">
                 <button
                   className="secondary-button inline-button"

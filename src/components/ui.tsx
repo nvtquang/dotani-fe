@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 type PageHeaderProps = {
   title: string;
@@ -77,10 +77,16 @@ export const UserAvatar = ({
   size?: 'sm' | 'md' | 'lg';
 }) => {
   const initial = (name || 'H').trim().charAt(0).toUpperCase();
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showImage = Boolean(src) && failedSrc !== src;
 
   return (
     <div className={`user-avatar user-avatar-${size}`}>
-      {src ? <img src={src} alt={name ?? 'Avatar'} /> : <span>{initial}</span>}
+      {showImage ? (
+        <img src={src!} alt={name ?? 'Avatar'} onError={() => setFailedSrc(src ?? null)} />
+      ) : (
+        <span>{initial}</span>
+      )}
     </div>
   );
 };

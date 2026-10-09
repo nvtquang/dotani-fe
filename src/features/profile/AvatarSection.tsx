@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import type { Member } from '../../types/member';
 import { resolveAssetUrl } from '../../utils/assetUrl';
@@ -14,11 +14,16 @@ type AvatarSectionProps = {
 export const AvatarSection = ({ member, isUploading, isDeleting, onUpload, onDelete }: AvatarSectionProps) => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const avatarUrl = resolveAssetUrl(member.avatarUrl);
+  const [failedUrl, setFailedUrl] = useState<string | null>(null);
 
   return (
     <section className="surface profile-card">
       <div className="avatar-preview">
-        {avatarUrl ? <img src={avatarUrl} alt={member.fullName} /> : <span>{member.fullName.charAt(0)}</span>}
+        {avatarUrl && failedUrl !== avatarUrl ? (
+          <img src={avatarUrl} alt={member.fullName} onError={() => setFailedUrl(avatarUrl)} />
+        ) : (
+          <span>{member.fullName.charAt(0)}</span>
+        )}
       </div>
       <div>
         <p className="page-eyebrow">Hồ sơ đoàn viên</p>

@@ -111,20 +111,6 @@ textarea:focus-visible {
   font-size: 0.82rem;
 }
 
-.header-search {
-  align-items: center;
-  background: #f8fafc;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  color: var(--text-secondary);
-  display: flex;
-  flex: 1;
-  gap: 10px;
-  max-width: 480px;
-  min-height: 40px;
-  padding: 0 13px;
-}
-
 .header-user {
   align-items: center;
   border-radius: var(--radius);
@@ -157,6 +143,7 @@ textarea:focus-visible {
   align-items: center;
   display: flex;
   gap: 10px;
+  margin-left: auto;
 }
 
 .icon-button,
@@ -2225,7 +2212,6 @@ textarea:focus-visible {
     padding: 10px 14px;
   }
 
-  .header-search,
   .header-user {
     display: none;
   }

@@ -1,4 +1,4 @@
-import { LogOut, Menu, Search } from 'lucide-react';
+import { LogOut, Menu } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useMyProfile } from '../hooks/useMembers';
 import { useAuth } from '../stores/AuthContext';
@@ -23,10 +23,6 @@ export const Header = ({ onMenuClick }: HeaderProps) => {
       <button className="icon-button menu-button" type="button" onClick={onMenuClick} aria-label="Mở menu">
         <Menu size={20} aria-hidden="true" />
       </button>
-      <div className="header-search" role="search">
-        <Search size={17} aria-hidden="true" />
-        <span>Tìm kiếm nhanh</span>
-      </div>
       {user && (
         <div className="header-right">
           <NotificationBell />

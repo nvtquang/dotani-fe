@@ -194,8 +194,20 @@ export const ChatPage = () => {
     return Array.from(ids);
   }, [conversationsQuery.data, liveMessages, messagesQuery.data?.content]);
   const memberMap = useMemberMap(visibleMemberIds);
-  const selectedProfileQuery = useMember(profileMemberId ?? '');
+  // Full profiles (email, phone, ...) are only readable within the viewer's scope; others get the public card.
+  const canViewFullProfile = (memberId: string) => {
+    if (memberId === user?.memberId) return true;
+    if (user?.role === 'WARD_SECRETARY' || user?.role === 'WARD_DEPUTY_SECRETARY') return true;
+    if (user?.role === 'TDP_SECRETARY' || user?.role === 'TDP_DEPUTY_SECRETARY') {
+      return Boolean(user.tdpId) && memberMap[memberId]?.organizationId === user.tdpId;
+    }
+    return false;
+  };
+  const selectedProfileQuery = useMember(
+    profileMemberId && canViewFullProfile(profileMemberId) ? profileMemberId : '',
+  );
   const selectedProfile = selectedProfileQuery.data;
+  const selectedProfileBasic = profileMemberId ? memberMap[profileMemberId] : undefined;
   const addMember = useAddConversationMember(selectedConversationId ?? '');
   const removeMember = useRemoveConversationMember(selectedConversationId ?? '');
   const uploadAttachment = useUploadChatAttachment(selectedConversationId ?? '');
@@ -791,6 +803,21 @@ export const ChatPage = () => {
             {selectedProfileQuery.isLoading && <LoadingSkeleton rows={5} />}
             {selectedProfileQuery.error && (
               <section className="error-box">{toApiError(selectedProfileQuery.error).message}</section>
+            )}
+
+            {!selectedProfile && !selectedProfileQuery.isLoading && selectedProfileBasic && (
+              <div className="profile-modal-header">
+                <UserAvatar
+                  name={selectedProfileBasic.fullName}
+                  src={resolveAssetUrl(selectedProfileBasic.avatarUrl)}
+                  size="lg"
+                />
+                <div>
+                  <p className="page-eyebrow">Hồ sơ đoàn viên</p>
+                  <h2>{selectedProfileBasic.fullName}</h2>
+                  <p>{selectedProfileBasic.organizationName || 'Chưa có TDP'}</p>
+                </div>
+              </div>
             )}
 
             {selectedProfile && (

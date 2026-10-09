@@ -1,7 +1,8 @@
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { memberService, type ProfileFormValues } from '../services/memberService';
 import type { BankingFormValues } from '../types/banking';
-import type { Member, MemberFilters, MemberFormValues, MemberRole } from '../types/member';
+import type { MemberDirectoryItem, MemberFilters, MemberFormValues, MemberRole } from '../types/member';
 
 export const memberKeys = {
   all: ['members'] as const,
@@ -10,6 +11,7 @@ export const memberKeys = {
   banking: (id: string) => [...memberKeys.all, 'detail', id, 'banking'] as const,
   list: (filters: MemberFilters) => [...memberKeys.all, 'list', filters] as const,
   directory: (keyword: string) => [...memberKeys.all, 'directory', keyword] as const,
+  lookup: (ids: string[]) => [...memberKeys.all, 'lookup', ids] as const,
   detail: (id: string) => [...memberKeys.all, 'detail', id] as const,
 };
 
@@ -76,41 +78,38 @@ export const useMember = (id: string) =>
     enabled: Boolean(id),
   });
 
-export const useMemberNameMap = (ids: string[]) => {
-  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
-  const queries = useQueries({
-    queries: uniqueIds.map((id) => ({
-      queryKey: memberKeys.detail(id),
-      queryFn: () => memberService.findById(id),
-      enabled: Boolean(id),
-      staleTime: 5 * 60 * 1000,
-    })),
+// One batched request for the public fields (name, organization, avatar) of many members.
+// Unlike GET /api/members/{id}, this works for every role.
+export const useMemberMap = (ids: string[]) => {
+  const uniqueIds = Array.from(new Set(ids.filter(Boolean))).sort();
+  const { data } = useQuery({
+    queryKey: memberKeys.lookup(uniqueIds),
+    queryFn: () => memberService.lookup(uniqueIds),
+    enabled: uniqueIds.length > 0,
+    staleTime: 5 * 60 * 1000,
   });
 
-  return uniqueIds.reduce<Record<string, string>>((result, id, index) => {
-    result[id] = queries[index]?.data?.fullName ?? 'Đoàn viên';
-    return result;
-  }, {});
+  return useMemo(
+    () =>
+      (data ?? []).reduce<Record<string, MemberDirectoryItem>>((result, member) => {
+        result[member.id] = member;
+        return result;
+      }, {}),
+    [data],
+  );
 };
 
-export const useMemberMap = (ids: string[]) => {
-  const uniqueIds = Array.from(new Set(ids.filter(Boolean)));
-  const queries = useQueries({
-    queries: uniqueIds.map((id) => ({
-      queryKey: memberKeys.detail(id),
-      queryFn: () => memberService.findById(id),
-      enabled: Boolean(id),
-      staleTime: 5 * 60 * 1000,
-    })),
-  });
+export const useMemberNameMap = (ids: string[]) => {
+  const memberMap = useMemberMap(ids);
 
-  return uniqueIds.reduce<Record<string, Member>>((result, id, index) => {
-    const member = queries[index]?.data;
-    if (member) {
-      result[id] = member;
-    }
-    return result;
-  }, {});
+  return useMemo(
+    () =>
+      Object.fromEntries(Object.values(memberMap).map((member) => [member.id, member.fullName])) as Record<
+        string,
+        string
+      >,
+    [memberMap],
+  );
 };
 
 export const useCreateMember = () => {

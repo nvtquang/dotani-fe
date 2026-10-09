@@ -106,6 +106,10 @@ export const memberService = {
     });
     return data;
   },
+  lookup: async (ids: string[]) => {
+    const { data } = await httpClient.post<MemberDirectoryItem[]>('/api/members/lookup', { memberIds: ids });
+    return data;
+  },
   findById: async (id: string) => {
     const { data } = await httpClient.get<Member>(`/api/members/${id}`);
     return data;

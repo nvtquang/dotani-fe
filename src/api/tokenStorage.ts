@@ -1,5 +1,5 @@
-const ACCESS_TOKEN_KEY = 'hcmcyu.accessToken';
-const REFRESH_TOKEN_KEY = 'hcmcyu.refreshToken';
+const ACCESS_TOKEN_KEY = 'dotani.accessToken';
+const REFRESH_TOKEN_KEY = 'dotani.refreshToken';
 
 export const tokenStorage = {
   getAccessToken: () => localStorage.getItem(ACCESS_TOKEN_KEY),

@@ -60,7 +60,7 @@ Yêu cầu:
 Clone frontend:
 
 ```powershell
-cd D:\Java
+cd D:\Projects\DOTANI
 git clone https://github.com/nvtquang/dotani-fe.git
 ```
 
@@ -120,32 +120,21 @@ Preview bản build:
 npm run preview
 ```
 
-## Chạy cùng Docker Compose
+## Chạy cùng backend bằng Docker Compose
 
-Docker Compose nằm ở backend root:
+Docker Compose nằm ở repo backend và chỉ chạy **MySQL + backend**. Frontend vẫn chạy bằng `npm run dev` như trên.
 
 ```powershell
-cd D:\Java\HCMCYU
+cd D:\Projects\DOTANI\dotani-be
 Copy-Item .env.example .env
-docker compose up --build
+docker compose up --build -d
 ```
 
-Compose sẽ build frontend từ folder:
-
-```text
-D:\Java\HCMCYU-frontend
-```
-
-Frontend được serve tại:
-
-```text
-http://localhost:5173
-```
-
-Nếu đổi `VITE_*` trong `.env`, cần build lại frontend:
+Sau đó chạy frontend:
 
 ```powershell
-docker compose up --build -d frontend
+cd D:\Projects\DOTANI\dotani-fe
+npm run dev
 ```
 
 ## Tài khoản mẫu
@@ -162,12 +151,12 @@ Một số tài khoản hay dùng:
 
 | Username | Email | Role |
 | --- | --- | --- |
-| `admin` | `admin@hcmcyu.local` | `WARD_SECRETARY` |
-| `ward.secretary` | `ward.secretary@hcmcyu.local` | `WARD_SECRETARY` |
-| `ward.deputy` | `ward.deputy@hcmcyu.local` | `WARD_DEPUTY_SECRETARY` |
-| `tdp1.secretary` | `tdp1.secretary@hcmcyu.local` | `TDP_SECRETARY` |
-| `tdp1.deputy` | `tdp1.deputy@hcmcyu.local` | `TDP_DEPUTY_SECRETARY` |
-| `tdp1.member1` | `tdp1.member1@hcmcyu.local` | `MEMBER` |
+| `admin` | `admin@dotani.local` | `WARD_SECRETARY` |
+| `ward.secretary` | `ward.secretary@dotani.local` | `WARD_SECRETARY` |
+| `ward.deputy` | `ward.deputy@dotani.local` | `WARD_DEPUTY_SECRETARY` |
+| `tdp1.secretary` | `tdp1.secretary@dotani.local` | `TDP_SECRETARY` |
+| `tdp1.deputy` | `tdp1.deputy@dotani.local` | `TDP_DEPUTY_SECRETARY` |
+| `tdp1.member1` | `tdp1.member1@dotani.local` | `MEMBER` |
 
 Các tài khoản TDP khác theo quy ước:
 

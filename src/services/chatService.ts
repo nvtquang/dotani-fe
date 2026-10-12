@@ -4,8 +4,8 @@ import type { Conversation, ConversationCreateRequest, Message } from '../types/
 
 export const chatService = {
   conversations: async () => {
-    const { data } = await httpClient.get<Conversation[]>('/api/chat/conversations');
-    return data;
+    const { data } = await httpClient.get<PageResponse<Conversation>>('/api/chat/conversations', { params: { size: 200 } });
+    return data.content;
   },
   conversation: async (id: string) => {
     const { data } = await httpClient.get<Conversation>(`/api/chat/conversations/${id}`);

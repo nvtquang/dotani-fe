@@ -1,6 +1,8 @@
 export type NotificationType =
   | 'EVENT_NEW'
   | 'EVENT_UPDATED'
+  | 'EVENT_CANCELLED'
+  | 'EVENT_DEADLINE'
   | 'NEW_TASK'
   | 'MEETING_SCHEDULE'
   | 'CONGRESS'

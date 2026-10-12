@@ -15,7 +15,7 @@ import {
   useUploadEventAttachments,
   useUpdateParticipation,
 } from '../../hooks/useEvents';
-import { useMember, useMemberNameMap } from '../../hooks/useMembers';
+import { useMember } from '../../hooks/useMembers';
 import { useOrganizations } from '../../hooks/useOrganizations';
 import { useAuth } from '../../stores/AuthContext';
 import type { ApiError } from '../../types/api';
@@ -32,7 +32,11 @@ import { formatDateTime } from '../../utils/dateTime';
 import { toApiError } from '../../utils/apiError';
 import { resolveAssetUrl } from '../../utils/assetUrl';
 
-const canManageEvents = (role: string | null) => role === 'WARD_SECRETARY' || role === 'WARD_DEPUTY_SECRETARY';
+// Ward officers manage every event; TDP secretaries and deputies manage their own TDP's events.
+const canManageEvent = (role: string | null, tdpId?: string | null, organizationId?: string) =>
+  role === 'WARD_SECRETARY' ||
+  role === 'WARD_DEPUTY_SECRETARY' ||
+  ((role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY') && Boolean(tdpId) && tdpId === organizationId);
 
 const isTdpOfficer = (role: string | null) => role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY';
 
@@ -45,9 +49,8 @@ export const EventDetailPage = () => {
   const [formError, setFormError] = useState<ApiError | null>(null);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
   const isEditing = searchParams.get('mode') === 'edit';
-  const canManage = canManageEvents(role);
-
   const eventQuery = useEvent(id);
+  const canManage = canManageEvent(role, user?.tdpId, eventQuery.data?.organizationId);
   const summaryQuery = useParticipationSummary(id);
   const participantsQuery = useParticipants(id, canManage);
   const myParticipationsQuery = useMyEventParticipations();
@@ -65,7 +68,6 @@ export const EventDetailPage = () => {
   );
   const fixedOrganizationId = isTdpOfficer(role) ? user?.tdpId : undefined;
   const myParticipation = myParticipationsQuery.data?.find((item) => item.eventId === id);
-  const participantNameMap = useMemberNameMap((participantsQuery.data ?? []).map((participant) => participant.memberId));
 
   const handleUpdate = async (values: EventFormValues) => {
     setFormError(null);
@@ -372,7 +374,7 @@ export const EventDetailPage = () => {
                               type="button"
                               onClick={() => setSelectedParticipantId(participant.memberId)}
                             >
-                              {participantNameMap[participant.memberId] ?? 'Đoàn viên'}
+                              {participant.participantName ?? 'Đoàn viên'}
                             </button>
                           </td>
                           <td>

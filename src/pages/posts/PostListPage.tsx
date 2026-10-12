@@ -202,7 +202,11 @@ export const PostListPage = () => {
               </div>
               <div>
                 <dt>TDP</dt>
-                <dd>{organizationNameById.get(post.organizationId) ?? 'Chưa có TDP'}</dd>
+                <dd>{post.organizationName ?? organizationNameById.get(post.organizationId) ?? 'Chưa có TDP'}</dd>
+              </div>
+              <div>
+                <dt>Người đăng</dt>
+                <dd>{post.authorName ?? '-'}</dd>
               </div>
               <div>
                 <dt>Ngày tạo</dt>

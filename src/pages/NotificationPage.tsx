@@ -15,7 +15,9 @@ const pageSize = 10;
 
 const notificationTypeLabel: Record<Notification['notificationType'], string> = {
   EVENT_NEW: 'Sự kiện mới',
-  EVENT_UPDATED: 'Sự kiện cập nhật',
+  EVENT_UPDATED: 'Sự kiện thay đổi',
+  EVENT_CANCELLED: 'Sự kiện bị huỷ',
+  EVENT_DEADLINE: 'Sắp hết hạn đăng ký',
   NEW_TASK: 'Công việc mới',
   MEETING_SCHEDULE: 'Lịch họp',
   CONGRESS: 'Đại hội',

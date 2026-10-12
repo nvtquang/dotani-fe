@@ -78,15 +78,17 @@ export const eventService = {
     return data;
   },
   participants: async (eventId: string) => {
-    const { data } = await httpClient.get<EventParticipation[]>(`/api/events/${eventId}/participants`);
-    return data;
+    const { data } = await httpClient.get<PageResponse<EventParticipation>>(`/api/events/${eventId}/participants`, {
+      params: { size: 500 },
+    });
+    return data.content;
   },
   participationSummary: async (eventId: string) => {
     const { data } = await httpClient.get<ParticipationSummary>(`/api/events/${eventId}/participation-summary`);
     return data;
   },
   myEvents: async () => {
-    const { data } = await httpClient.get<EventParticipation[]>('/api/events/me');
-    return data;
+    const { data } = await httpClient.get<PageResponse<EventParticipation>>('/api/events/me', { params: { size: 200 } });
+    return data.content;
   },
 };

@@ -14,6 +14,7 @@ export type Event = {
   endTime: string;
   registrationDeadline?: string | null;
   organizationId: string;
+  organizationName?: string | null;
   maxParticipants?: number | null;
   status: EventStatus;
   createdBy?: string | null;
@@ -64,6 +65,7 @@ export type EventParticipation = {
   eventStartTime: string;
   eventEndTime: string;
   memberId: string;
+  participantName?: string | null;
   status: ParticipationStatus;
   createdAt?: string;
   updatedAt?: string;

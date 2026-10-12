@@ -16,7 +16,9 @@ export type Post = {
   content: string;
   type: PostType;
   organizationId: string;
+  organizationName?: string | null;
   authorId?: string | null;
+  authorName?: string | null;
   status: PostStatus;
   images: PostImage[];
   createdAt?: string;

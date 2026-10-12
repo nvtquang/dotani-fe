@@ -16,7 +16,12 @@ import { toApiError } from '../../utils/apiError';
 
 const pageSize = 10;
 
-const canManageEvents = (role: string | null) => role === 'WARD_SECRETARY' || role === 'WARD_DEPUTY_SECRETARY';
+// Ward officers create events for any unit; TDP secretaries and deputies for their own TDP (fixed below).
+const canManageEvents = (role: string | null) =>
+  role === 'WARD_SECRETARY' ||
+  role === 'WARD_DEPUTY_SECRETARY' ||
+  role === 'TDP_SECRETARY' ||
+  role === 'TDP_DEPUTY_SECRETARY';
 
 const getVisibleOrganizations = (
   organizations: OrganizationUnit[],

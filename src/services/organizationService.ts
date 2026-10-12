@@ -1,3 +1,4 @@
+import type { PageResponse } from '../types/api';
 import { httpClient } from '../api/httpClient';
 import type { OrganizationMemberSummary, OrganizationUnit, OrganizationUnitFormValues } from '../types/organization';
 
@@ -11,12 +12,12 @@ const toPayload = (values: OrganizationUnitFormValues) => ({
 
 export const organizationService = {
   list: async () => {
-    const { data } = await httpClient.get<OrganizationUnit[]>('/api/organizations');
-    return data;
+    const { data } = await httpClient.get<PageResponse<OrganizationUnit>>('/api/organizations', { params: { size: 200 } });
+    return data.content;
   },
   publicBranches: async () => {
-    const { data } = await httpClient.get<OrganizationUnit[]>('/api/organizations/public');
-    return data;
+    const { data } = await httpClient.get<PageResponse<OrganizationUnit>>('/api/organizations/public', { params: { size: 200 } });
+    return data.content;
   },
   findById: async (id: string) => {
     const { data } = await httpClient.get<OrganizationUnit>(`/api/organizations/${id}`);
@@ -34,7 +35,9 @@ export const organizationService = {
     await httpClient.delete(`/api/organizations/${id}`);
   },
   members: async (id: string) => {
-    const { data } = await httpClient.get<OrganizationMemberSummary[]>(`/api/organizations/${id}/members`);
-    return data;
+    const { data } = await httpClient.get<PageResponse<OrganizationMemberSummary>>(`/api/organizations/${id}/members`, {
+      params: { size: 500 },
+    });
+    return data.content;
   },
 };

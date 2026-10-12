@@ -1,4 +1,5 @@
 import { httpClient } from '../api/httpClient';
+import { localDateToIso } from '../utils/dateTime';
 import type { PageResponse } from '../types/api';
 import type {
   Event,
@@ -9,11 +10,12 @@ import type {
   ParticipationSummary,
 } from '../types/event';
 
-const toDateTime = (value: string | undefined, fallbackTime: string) => {
+// The form works with local dates; the API expects UTC instants.
+const toInstant = (value: string | undefined, localTime: string) => {
   if (!value) {
     return value;
   }
-  return value.includes('T') ? value : `${value}T${fallbackTime}`;
+  return value.includes('T') ? new Date(value).toISOString() : localDateToIso(value, localTime);
 };
 
 const toPayload = (values: EventFormValues) => ({
@@ -21,9 +23,9 @@ const toPayload = (values: EventFormValues) => ({
   description: values.description || null,
   type: values.type,
   location: values.location || null,
-  startTime: toDateTime(values.startTime, '00:00:00'),
-  endTime: toDateTime(values.endTime, '23:59:00'),
-  registrationDeadline: values.registrationDeadline ? toDateTime(values.registrationDeadline, '00:00:00') : null,
+  startTime: toInstant(values.startTime, '00:00'),
+  endTime: toInstant(values.endTime, '23:59'),
+  registrationDeadline: values.registrationDeadline ? toInstant(values.registrationDeadline, '00:00') : null,
   organizationId: values.organizationId,
   maxParticipants: values.maxParticipants ? Number(values.maxParticipants) : null,
   status: values.status,

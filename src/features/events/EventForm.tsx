@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import type { Event, EventFormValues, EventStatus, EventType } from '../../types/event';
 import type { OrganizationUnit } from '../../types/organization';
 import { eventStatusLabel, eventTypeLabel } from '../../utils/labels';
-import { toDateInputValue } from '../../utils/dateTime';
+import { toLocalDateInput } from '../../utils/dateTime';
 
 type EventFormProps = {
   initialValue?: Event;
@@ -30,9 +30,9 @@ const toFormValues = (
     description: event?.description ?? '',
     type: event?.type ?? 'EVENT',
     location: event?.location ?? '',
-    startTime: toDateInputValue(event?.startTime),
-    endTime: toDateInputValue(event?.endTime),
-    registrationDeadline: toDateInputValue(event?.registrationDeadline),
+    startTime: toLocalDateInput(event?.startTime),
+    endTime: toLocalDateInput(event?.endTime),
+    registrationDeadline: toLocalDateInput(event?.registrationDeadline),
     organizationId,
     organizationIds: organizationId ? [organizationId] : [],
     maxParticipants: event?.maxParticipants?.toString() ?? '',

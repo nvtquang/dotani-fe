@@ -264,6 +264,9 @@ export const LoginPage = () => {
         <button className="primary-button" type="submit" disabled={isLoading}>
           Đăng nhập
         </button>
+        <Link className="text-action" to="/forgot-password">
+          Quên mật khẩu?
+        </Link>
         <Link className="text-action" to="/register">
           Tạo tài khoản đoàn viên
         </Link>

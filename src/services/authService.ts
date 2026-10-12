@@ -31,5 +31,28 @@ export const authService = {
     tokenStorage.setRefreshToken(data.refreshToken);
     return data;
   },
-  logout: () => tokenStorage.clear(),
+  /** Revokes the refresh token on the server (every session with allDevices), then forgets the tokens locally. */
+  logout: async (allDevices = false) => {
+    const refreshToken = tokenStorage.getRefreshToken();
+    tokenStorage.clear();
+    if (refreshToken) {
+      try {
+        await httpClient.post('/api/auth/logout', { refreshToken, allDevices });
+      } catch {
+        // signing out locally must not depend on the server being reachable
+      }
+    }
+  },
+  changePassword: async (currentPassword: string, newPassword: string) => {
+    const { data } = await httpClient.put<AuthResponse>('/api/auth/password', { currentPassword, newPassword });
+    tokenStorage.setAccessToken(data.accessToken);
+    tokenStorage.setRefreshToken(data.refreshToken);
+    return data;
+  },
+  forgotPassword: async (email: string) => {
+    await httpClient.post('/api/auth/password/forgot', { email });
+  },
+  resetPassword: async (token: string, newPassword: string) => {
+    await httpClient.post('/api/auth/password/reset', { token, newPassword });
+  },
 };

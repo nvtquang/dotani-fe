@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { BankingSection } from '../features/banking/BankingSection';
 import { AvatarSection } from '../features/profile/AvatarSection';
+import { SecuritySection } from '../features/profile/SecuritySection';
 import { ProfileForm } from '../features/profile/ProfileForm';
 import {
   useDeleteAvatar,
@@ -191,6 +192,8 @@ export const ProfilePage = () => {
           onDeleteQr={handleQrDelete}
         />
       )}
+
+      <SecuritySection />
     </div>
   );
 };

@@ -24,6 +24,8 @@ type AuthContextValue = {
   loginWithGoogle: (payload: GoogleLoginRequest) => Promise<void>;
   register: (payload: RegisterRequest) => Promise<void>;
   logout: () => void;
+  /** Signs out every session of the account, this one included. */
+  logoutEverywhere: () => Promise<void>;
   reloadMe: () => Promise<AuthUser | null>;
 };
 
@@ -56,7 +58,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(currentUser);
       } catch {
         if (mounted) {
-          authService.logout();
+          void authService.logout();
           setUser(null);
         }
       } finally {
@@ -113,7 +115,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   );
 
   const logout = useCallback(() => {
-    authService.logout();
+    void authService.logout();
+    setUser(null);
+  }, []);
+
+  const logoutEverywhere = useCallback(async () => {
+    await authService.logout(true);
     setUser(null);
   }, []);
 
@@ -133,9 +140,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       loginWithGoogle,
       register,
       logout,
+      logoutEverywhere,
       reloadMe,
     }),
-    [isLoading, login, loginWithGoogle, logout, register, reloadMe, user],
+    [isLoading, login, loginWithGoogle, logout, logoutEverywhere, register, reloadMe, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

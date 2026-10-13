@@ -1,9 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Paperclip, Pencil, Upload, X } from 'lucide-react';
+import { ArrowLeft, Building2, Clock, MapPin, Pencil, Trash2 } from 'lucide-react';
+import { AttachmentGallery } from '../../components/AttachmentGallery';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
-import { Card, EmptyState, LoadingSkeleton, PageHeader, StatusBadge, UserAvatar } from '../../components/ui';
-import { EventForm } from '../../features/events/EventForm';
+import { Alert, Badge, Button, Card, Dialog, EmptyState, LoadingSkeleton, Skeleton, StatusBadge, Time, useConfirm, useToast } from '../../components/ui';
+import { EventForm, EventFormFooter } from '../../features/events/EventForm';
+import { RegistrationPanel } from '../../features/events/RegistrationPanel';
+import { MemberProfileDialog } from '../../features/members/MemberProfileDialog';
 import {
   useDeleteEvent,
   useDeleteEventAttachment,
@@ -12,473 +15,236 @@ import {
   useParticipants,
   useParticipationSummary,
   useUpdateEvent,
-  useUploadEventAttachments,
   useUpdateParticipation,
+  useUploadEventAttachments,
 } from '../../hooks/useEvents';
-import { useMember } from '../../hooks/useMembers';
 import { useOrganizations } from '../../hooks/useOrganizations';
+import { isTdpRole, isWardRole } from '../../routes/navigation';
 import { useAuth } from '../../stores/AuthContext';
-import type { ApiError } from '../../types/api';
 import type { EventFormValues, ParticipationStatus } from '../../types/event';
-import {
-  eventStatusLabel,
-  eventTypeLabel,
-  genderLabel,
-  memberStatusLabel,
-  participationStatusLabel,
-  roleLabel,
-} from '../../utils/labels';
-import { formatDateTime } from '../../utils/dateTime';
 import { toApiError } from '../../utils/apiError';
-import { resolveAssetUrl } from '../../utils/assetUrl';
+import { formatDate, formatDateTime, formatTime, isSameDay } from '../../utils/dateTime';
+import { eventStatusLabel, eventTypeLabel, participationStatusLabel } from '../../utils/labels';
 
-// Ward officers manage every event; TDP secretaries and deputies manage their own TDP's events.
-const canManageEvent = (role: string | null, tdpId?: string | null, organizationId?: string) =>
-  role === 'WARD_SECRETARY' ||
-  role === 'WARD_DEPUTY_SECRETARY' ||
-  ((role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY') && Boolean(tdpId) && tdpId === organizationId);
-
-const isTdpOfficer = (role: string | null) => role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY';
+const timeRange = (start: string, end: string) =>
+  isSameDay(new Date(start), new Date(end))
+    ? `${formatDate(start)} · ${formatTime(start)} – ${formatTime(end)}`
+    : `${formatDateTime(start)} – ${formatDateTime(end)}`;
 
 export const EventDetailPage = () => {
   const { id = '' } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
+  const toast = useToast();
+  const confirm = useConfirm();
+  const formId = useId();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { role, user } = useAuth();
-  const [formError, setFormError] = useState<ApiError | null>(null);
-  const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
-  const isEditing = searchParams.get('mode') === 'edit';
+  const [formError, setFormError] = useState<string | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
+
   const eventQuery = useEvent(id);
-  const canManage = canManageEvent(role, user?.tdpId, eventQuery.data?.organizationId);
-  const summaryQuery = useParticipationSummary(id);
+  const event = eventQuery.data;
+  const canManage = isWardRole(role) || (isTdpRole(role) && Boolean(user?.tdpId) && user?.tdpId === event?.organizationId);
+  const isEditing = canManage && searchParams.get('mode') === 'edit';
+  const summaryQuery = useParticipationSummary(canManage ? id : '');
   const participantsQuery = useParticipants(id, canManage);
-  const myParticipationsQuery = useMyEventParticipations();
-  const organizationsQuery = useOrganizations();
+  const myParticipations = useMyEventParticipations(Boolean(user?.memberId));
+  const organizationsQuery = useOrganizations(canManage);
   const updateEvent = useUpdateEvent(id);
   const deleteEvent = useDeleteEvent();
   const uploadAttachments = useUploadEventAttachments(id);
   const deleteAttachment = useDeleteEventAttachment(id);
   const updateParticipation = useUpdateParticipation(id);
-  const selectedParticipantQuery = useMember(selectedParticipantId ?? '');
+  const myStatus = myParticipations.data?.find((item) => item.eventId === id)?.status;
 
-  const organizations = useMemo(
-    () => (organizationsQuery.data ?? []).filter((organization) => organization.type === 'YOUTH_UNION_BRANCH'),
-    [organizationsQuery.data],
-  );
-  const fixedOrganizationId = isTdpOfficer(role) ? user?.tdpId : undefined;
-  const myParticipation = myParticipationsQuery.data?.find((item) => item.eventId === id);
+  const showError = (caught: unknown, fallback: string) => toast.error(toApiError(caught).message ?? fallback);
 
   const handleUpdate = async (values: EventFormValues) => {
-    setFormError(null);
-    try {
-      await updateEvent.mutateAsync({
-        ...values,
-        organizationId: fixedOrganizationId ?? values.organizationId,
-      });
-      setSearchParams({});
-    } catch (error) {
-      setFormError(toApiError(error));
-    }
+    await updateEvent.mutateAsync(values);
+    toast.success('Đã lưu sự kiện');
+    setSearchParams({}, { replace: true });
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Xóa sự kiện này?')) {
+    if (!(await confirm({ title: 'Xóa sự kiện này?', description: 'Đoàn viên sẽ không còn thấy sự kiện và các đăng ký liên quan.', confirmLabel: 'Xóa', tone: 'danger' }))) {
       return;
     }
-
-    setFormError(null);
     try {
       await deleteEvent.mutateAsync(id);
+      toast.success('Đã xóa sự kiện');
       navigate('/events');
-    } catch (error) {
-      setFormError(toApiError(error));
+    } catch (caught) {
+      showError(caught, 'Không xóa được sự kiện');
     }
   };
 
-  const handleVote = async (status: ParticipationStatus) => {
-    setFormError(null);
+  const handleParticipation = async (status: ParticipationStatus) => {
     try {
       await updateParticipation.mutateAsync(status);
-    } catch (error) {
-      setFormError(toApiError(error));
-    }
-  };
-
-  const handleUploadAttachments = async (files: FileList | null) => {
-    if (!files?.length) {
-      return;
-    }
-
-    setFormError(null);
-    try {
-      await uploadAttachments.mutateAsync(Array.from(files));
-    } catch (error) {
-      setFormError(toApiError(error));
-    } finally {
-      if (attachmentInputRef.current) {
-        attachmentInputRef.current.value = '';
-      }
+      const previous = myStatus;
+      toast.success(
+        status === 'GOING' ? 'Đã đăng ký tham gia' : previous === 'GOING' && status === 'NOT_GOING' ? 'Đã hủy đăng ký' : `Đã cập nhật: ${participationStatusLabel[status]}`,
+      );
+    } catch (caught) {
+      showError(caught, 'Không cập nhật được đăng ký');
     }
   };
 
   const handleDeleteAttachment = async (attachmentId: string) => {
-    if (!window.confirm('Xóa tệp đính kèm này?')) {
+    if (!(await confirm({ title: 'Xóa tệp đính kèm này?', confirmLabel: 'Xóa', tone: 'danger' }))) {
       return;
     }
-
-    setFormError(null);
-    try {
-      await deleteAttachment.mutateAsync(attachmentId);
-    } catch (error) {
-      setFormError(toApiError(error));
-    }
+    deleteAttachment.mutate(attachmentId, { onError: (caught) => showError(caught, 'Không xóa được tệp') });
   };
 
   if (eventQuery.error && toApiError(eventQuery.error).status === 403) {
     return <ForbiddenMessage />;
   }
-
   if (eventQuery.isLoading) {
     return (
-      <Card>
+      <Card className="p-5">
+        <Skeleton className="mb-4 h-7 w-2/3" />
         <LoadingSkeleton rows={5} />
       </Card>
     );
   }
-
-  if (!eventQuery.data) {
-    return <section className="error-box">Không tìm thấy sự kiện.</section>;
+  if (!event) {
+    return <Alert>Không tìm thấy sự kiện.</Alert>;
   }
 
-  const event = eventQuery.data;
-  const summary = summaryQuery.data ?? { going: 0, notGoing: 0, undecided: 0 };
-  const participantCount = summary.going + summary.notGoing + summary.undecided;
-  const eventOrganizationName =
-    organizationsQuery.data?.find((organization) => organization.id === event.organizationId)?.name ?? 'Chưa có TDP';
-  const selectedParticipant = selectedParticipantQuery.data;
+  const summary = summaryQuery.data;
+  const participants = participantsQuery.data ?? [];
 
   return (
-    <div className="page-stack">
-      <PageHeader
-        eyebrow={eventTypeLabel[event.type]}
-        title={event.title}
-        description={`${eventStatusLabel[event.status]} · ${formatDateTime(event.startTime)}`}
-        actions={
-          <>
-            <Link className="secondary-button inline-button" to="/events">
-              <ArrowLeft size={17} aria-hidden="true" />
-              Quay lại
-            </Link>
-            {canManage && (
-              <>
-                <button
-                  className="primary-button inline-button"
-                  type="button"
-                  onClick={() => setSearchParams(isEditing ? {} : { mode: 'edit' })}
-                >
-                  <Pencil size={17} aria-hidden="true" />
-                  {isEditing ? 'Xem chi tiết' : 'Sửa'}
-                </button>
-                <button className="secondary-button inline-button" type="button" onClick={handleDelete}>
-                  Xóa
-                </button>
-              </>
-            )}
-          </>
-        }
-      />
+    <>
+      <Link to="/events" className="mb-3 inline-flex h-10 items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900">
+        <ArrowLeft size={17} aria-hidden="true" />
+        Sự kiện
+      </Link>
 
-      {formError?.status === 403 && <ForbiddenMessage />}
-      {formError && formError.status !== 403 && <section className="error-box">{formError.message}</section>}
-
-      {isEditing && canManage ? (
-        <Card>
-          <div className="section-heading">
-            <h2>Sửa sự kiện</h2>
-          </div>
-          <EventForm
-            initialValue={event}
-            organizations={organizations}
-            fixedOrganizationId={fixedOrganizationId}
-            isSubmitting={updateEvent.isPending}
-            submitLabel="Lưu sự kiện"
-            onSubmit={handleUpdate}
-            onCancel={() => setSearchParams({})}
-          />
-        </Card>
-      ) : (
-        <>
-          <Card className="detail-grid">
-            <div>
-              <span>Địa điểm</span>
-              <strong>{event.location || '-'}</strong>
-            </div>
-            <div>
-              <span>Tổ chức</span>
-              <strong>{eventOrganizationName}</strong>
-            </div>
-            <div>
-              <span>Bắt đầu</span>
-              <strong>{formatDateTime(event.startTime)}</strong>
-            </div>
-            <div>
-              <span>Kết thúc</span>
-              <strong>{formatDateTime(event.endTime)}</strong>
-            </div>
-            <div>
-              <span>Hạn đăng ký</span>
-              <strong>{formatDateTime(event.registrationDeadline)}</strong>
-            </div>
-            <div>
-              <span>Số lượng tối đa</span>
-              <strong>{event.maxParticipants ?? 'Không giới hạn'}</strong>
-            </div>
-            <div className="detail-wide">
-              <span>Mô tả</span>
-              <strong>{event.description || '-'}</strong>
-            </div>
-          </Card>
-
-          <section className="stats-grid">
-            <Card>
-              <span>Tổng phản hồi</span>
-              <strong>{participantCount}</strong>
-            </Card>
-            <Card>
-              <span>Tham gia</span>
-              <strong>{summary.going}</strong>
-            </Card>
-            <Card>
-              <span>Không tham gia</span>
-              <strong>{summary.notGoing}</strong>
-            </Card>
-            <Card>
-              <span>Chưa chắc</span>
-              <strong>{summary.undecided}</strong>
-            </Card>
-          </section>
-
-          <Card>
-            <div className="section-heading">
-              <div>
-                <h2>Tệp đính kèm</h2>
-                <p className="page-description">Ảnh và tài liệu liên quan đến sự kiện.</p>
-              </div>
-              {canManage && (
-                <>
-                  <input
-                    ref={attachmentInputRef}
-                    className="visually-hidden"
-                    type="file"
-                    multiple
-                    accept="image/jpeg,image/png,image/webp,.pdf,.txt,.doc,.docx,.xls,.xlsx"
-                    onChange={(event) => handleUploadAttachments(event.target.files)}
-                  />
-                  <button
-                    className="primary-button inline-button"
-                    type="button"
-                    disabled={uploadAttachments.isPending}
-                    onClick={() => attachmentInputRef.current?.click()}
-                  >
-                    <Upload size={17} aria-hidden="true" />
-                    Đính kèm
-                  </button>
-                </>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="flex min-w-0 flex-col gap-4">
+          <Card className="p-4 sm:p-6">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <Badge tone="gray">{eventTypeLabel[event.type]}</Badge>
+              {(canManage || event.status === 'CANCELLED') && event.status !== 'PUBLISHED' && (
+                <StatusBadge value={event.status} label={eventStatusLabel[event.status]} />
               )}
             </div>
+            <h1 className="mt-2 text-xl font-bold text-slate-900 sm:text-2xl">{event.title}</h1>
+            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+              <li className="flex gap-2">
+                <Clock size={18} className="mt-0.5 shrink-0 text-slate-600" aria-hidden="true" />
+                {timeRange(event.startTime, event.endTime)}
+              </li>
+              {event.location && (
+                <li className="flex gap-2">
+                  <MapPin size={18} className="mt-0.5 shrink-0 text-slate-600" aria-hidden="true" />
+                  {event.location}
+                </li>
+              )}
+              <li className="flex gap-2">
+                <Building2 size={18} className="mt-0.5 shrink-0 text-slate-600" aria-hidden="true" />
+                {event.organizationName ?? 'Đoàn phường'}
+              </li>
+            </ul>
+            {event.description && <p className="mt-4 text-[15px] leading-relaxed whitespace-pre-line text-slate-800">{event.description}</p>}
 
-            <div className="image-grid">
-              {(event.attachments ?? []).map((attachment) => {
-                const fileUrl = resolveAssetUrl(attachment.fileUrl);
-                const isImage = attachment.attachmentKind === 'IMAGE';
-                return (
-                  <div className="image-tile" key={attachment.id}>
-                    {isImage && fileUrl ? (
-                      <a href={fileUrl} target="_blank" rel="noreferrer">
-                        <img src={fileUrl} alt={attachment.fileName ?? 'Ảnh sự kiện'} />
-                      </a>
-                    ) : (
-                      <a className="chat-file-link" href={fileUrl ?? '#'} target="_blank" rel="noreferrer">
-                        <Paperclip size={16} aria-hidden="true" />
-                        <span>{attachment.fileName ?? 'Tệp đính kèm'}</span>
-                      </a>
-                    )}
-                    {canManage && (
-                      <button
-                        className="danger-link"
-                        type="button"
-                        disabled={deleteAttachment.isPending}
-                        onClick={() => handleDeleteAttachment(attachment.id)}
-                      >
-                        Xóa
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-              {(event.attachments ?? []).length === 0 && <EmptyState title="Chưa có tệp đính kèm" />}
-            </div>
+            {canManage && (
+              <div className="mt-5 flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+                <Button variant="secondary" onClick={() => setSearchParams({ mode: 'edit' })}>
+                  <Pencil size={16} aria-hidden="true" />
+                  Sửa
+                </Button>
+                <Button variant="danger" onClick={handleDelete} loading={deleteEvent.isPending}>
+                  <Trash2 size={16} aria-hidden="true" />
+                  Xóa
+                </Button>
+              </div>
+            )}
           </Card>
 
-          {role === 'MEMBER' && (
-            <Card>
-              <div className="section-heading">
-                <div>
-                  <h2>Đăng ký tham gia</h2>
-                  <p className="page-description">
-                    Trạng thái hiện tại: {myParticipation ? participationStatusLabel[myParticipation.status] : 'Chưa chọn'}
-                  </p>
-                </div>
-              </div>
-              <div className="form-actions">
-                {(Object.keys(participationStatusLabel) as ParticipationStatus[]).map((status) => (
-                  <button
-                    className={myParticipation?.status === status ? 'primary-button inline-button' : 'secondary-button inline-button'}
-                    type="button"
-                    key={status}
-                    disabled={updateParticipation.isPending}
-                    onClick={() => handleVote(status)}
-                  >
-                    {participationStatusLabel[status]}
-                  </button>
-                ))}
-              </div>
-            </Card>
-          )}
+          <AttachmentGallery
+            title="Tệp đính kèm"
+            items={(event.attachments ?? []).map((item) => ({ id: item.id, url: item.fileUrl, kind: item.attachmentKind, name: item.fileName }))}
+            manage={
+              canManage
+                ? {
+                    accept: 'image/jpeg,image/png,image/webp,.pdf,.txt,.doc,.docx,.xls,.xlsx',
+                    uploading: uploadAttachments.isPending,
+                    onUpload: (files) => uploadAttachments.mutate(files, { onError: (caught) => showError(caught, 'Không tải lên được tệp') }),
+                    onDelete: handleDeleteAttachment,
+                  }
+                : undefined
+            }
+          />
 
           {canManage && (
-            <Card>
-              <div className="section-heading">
-                <h2>Danh sách phản hồi</h2>
-              </div>
-              {participantsQuery.error && toApiError(participantsQuery.error).status === 403 && <ForbiddenMessage />}
-              {participantsQuery.isLoading ? (
-                <LoadingSkeleton rows={4} />
-              ) : (
-                <div className="table-wrap">
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Đoàn viên</th>
-                        <th>Trạng thái</th>
-                        <th>Cập nhật</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(participantsQuery.data ?? []).map((participant) => (
-                        <tr key={participant.id}>
-                          <td>
-                            <button
-                              className="participant-profile-button"
-                              type="button"
-                              onClick={() => setSelectedParticipantId(participant.memberId)}
-                            >
-                              {participant.participantName ?? 'Đoàn viên'}
-                            </button>
-                          </td>
-                          <td>
-                            <StatusBadge value={participant.status} label={participationStatusLabel[participant.status]} />
-                          </td>
-                          <td>{formatDateTime(participant.updatedAt)}</td>
-                        </tr>
-                      ))}
-                      {(participantsQuery.data ?? []).length === 0 && (
-                        <tr>
-                          <td colSpan={3}>
-                            <EmptyState title="Chưa có phản hồi" />
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+            <Card className="p-4 sm:p-5">
+              <h2 className="text-base font-semibold text-slate-900">Phản hồi của đoàn viên</h2>
+              {summary && (
+                <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+                  {[
+                    { label: 'Tham gia', value: summary.going, tone: 'text-emerald-800' },
+                    { label: 'Chưa chắc', value: summary.undecided, tone: 'text-amber-800' },
+                    { label: 'Không', value: summary.notGoing, tone: 'text-accent-700' },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg bg-slate-50 py-2">
+                      <dt className="text-xs text-slate-600">{item.label}</dt>
+                      <dd className={`text-xl font-bold ${item.tone}`}>{item.value}</dd>
+                    </div>
+                  ))}
+                </dl>
               )}
+              {participantsQuery.isLoading && <LoadingSkeleton rows={3} />}
+              {!participantsQuery.isLoading && participants.length === 0 && <EmptyState title="Chưa có phản hồi" />}
+              <ul className="mt-3 divide-y divide-slate-100">
+                {participants.map((participant) => (
+                  <li key={participant.id} className="flex items-center gap-3 py-2">
+                    <button type="button" className="min-w-0 flex-1 truncate text-left text-sm font-medium text-brand-700 hover:underline" onClick={() => setProfileId(participant.memberId)}>
+                      {participant.participantName ?? 'Đoàn viên'}
+                    </button>
+                    <Time value={participant.updatedAt} relative className="hidden text-xs text-slate-600 sm:inline" />
+                    <StatusBadge value={participant.status} label={participationStatusLabel[participant.status]} />
+                  </li>
+                ))}
+              </ul>
             </Card>
           )}
+        </div>
 
-          {selectedParticipantId && (
-            <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Hồ sơ đoàn viên">
-              <Card className="profile-modal">
-                <button
-                  className="icon-button modal-close-button"
-                  type="button"
-                  onClick={() => setSelectedParticipantId(null)}
-                  aria-label="Đóng hồ sơ"
-                >
-                  <X size={18} aria-hidden="true" />
-                </button>
-
-                {selectedParticipantQuery.isLoading && <LoadingSkeleton rows={5} />}
-
-                {selectedParticipantQuery.error && (
-                  <section className="error-box">{toApiError(selectedParticipantQuery.error).message}</section>
-                )}
-
-                {selectedParticipant && (
-                  <>
-                    <div className="profile-modal-header">
-                      <UserAvatar
-                        name={selectedParticipant.fullName}
-                        src={resolveAssetUrl(selectedParticipant.avatarUrl)}
-                        size="lg"
-                      />
-                      <div>
-                        <p className="page-eyebrow">Hồ sơ đoàn viên</p>
-                        <h2>{selectedParticipant.fullName}</h2>
-                        <p>{selectedParticipant.organizationName || 'Chưa có TDP'}</p>
-                        <div className="form-actions section-gap">
-                          <StatusBadge
-                            value={selectedParticipant.memberStatus}
-                            label={memberStatusLabel[selectedParticipant.memberStatus]}
-                          />
-                          <StatusBadge
-                            value={selectedParticipant.memberRole}
-                            label={roleLabel[selectedParticipant.memberRole] ?? selectedParticipant.memberRole}
-                          />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="detail-grid profile-modal-detail">
-                      <div>
-                        <span>Email</span>
-                        <strong>{selectedParticipant.email || '-'}</strong>
-                      </div>
-                      <div>
-                        <span>Số điện thoại</span>
-                        <strong>{selectedParticipant.phone || '-'}</strong>
-                      </div>
-                      <div>
-                        <span>Ngày sinh</span>
-                        <strong>{selectedParticipant.dateOfBirth || '-'}</strong>
-                      </div>
-                      <div>
-                        <span>Giới tính</span>
-                        <strong>
-                          {selectedParticipant.gender ? genderLabel[selectedParticipant.gender] : '-'}
-                        </strong>
-                      </div>
-                      <div>
-                        <span>Ngày vào Đoàn</span>
-                        <strong>{selectedParticipant.youthUnionJoinDate || '-'}</strong>
-                      </div>
-                      <div>
-                        <span>Tổ dân phố</span>
-                        <strong>{selectedParticipant.organizationName || 'Chưa có TDP'}</strong>
-                      </div>
-                      <div className="detail-wide">
-                        <span>Địa chỉ</span>
-                        <strong>{selectedParticipant.address || '-'}</strong>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </Card>
-            </div>
+        <aside className="lg:sticky lg:top-20">
+          {user?.memberId && (
+            <RegistrationPanel event={event} myStatus={myStatus} pending={updateParticipation.isPending} onChange={handleParticipation} />
           )}
-        </>
+        </aside>
+      </div>
+
+      {canManage && (
+        <Dialog
+          open={isEditing}
+          onClose={() => setSearchParams({}, { replace: true })}
+          title="Sửa sự kiện"
+          size="lg"
+          footer={<EventFormFooter formId={formId} onCancel={() => setSearchParams({}, { replace: true })} submitLabel="Lưu" isSubmitting={updateEvent.isPending} />}
+        >
+          {formError && <Alert className="mb-4">{formError}</Alert>}
+          {organizationsQuery.isLoading ? (
+            <Skeleton className="h-64" />
+          ) : (
+            <EventForm
+              formId={formId}
+              initialValue={event}
+              organizations={organizationsQuery.data ?? []}
+              fixedOrganizationId={isTdpRole(role) ? user?.tdpId : undefined}
+              onSubmit={handleUpdate}
+              onError={setFormError}
+            />
+          )}
+        </Dialog>
       )}
-    </div>
+
+      <MemberProfileDialog memberId={profileId} onClose={() => setProfileId(null)} />
+    </>
   );
 };

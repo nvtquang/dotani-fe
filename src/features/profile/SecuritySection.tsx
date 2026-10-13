@@ -1,43 +1,51 @@
-import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Button, Card, Field, Input, useConfirm, useToast } from '../../components/ui';
 import { authService } from '../../services/authService';
 import { useAuth } from '../../stores/AuthContext';
-import { toApiError } from '../../utils/apiError';
+import { applyApiErrors, passwordSchema } from '../../utils/forms';
+
+const schema = z
+  .object({
+    currentPassword: z.string().min(1, 'Vui lòng nhập mật khẩu hiện tại'),
+    newPassword: passwordSchema,
+    confirmPassword: z.string(),
+  })
+  .refine((values) => values.newPassword === values.confirmPassword, { path: ['confirmPassword'], message: 'Mật khẩu nhập lại không khớp' });
+
+type Values = z.infer<typeof schema>;
 
 export const SecuritySection = () => {
   const navigate = useNavigate();
-  const { logoutEverywhere } = useAuth();
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const toast = useToast();
+  const confirm = useConfirm();
+  const { logoutEverywhere, user } = useAuth();
+  const { register, handleSubmit, reset, setError, formState } = useForm<Values>({
+    resolver: zodResolver(schema),
+    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+  });
+  const errors = formState.errors;
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setError(null);
-    setSuccess(null);
-    if (newPassword !== confirmPassword) {
-      setError('Mật khẩu nhập lại không khớp.');
-      return;
-    }
-    setIsSaving(true);
+  const onSubmit = handleSubmit(async (values) => {
     try {
-      await authService.changePassword(currentPassword, newPassword);
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-      setSuccess('Đã đổi mật khẩu. Các thiết bị khác đã được đăng xuất.');
+      await authService.changePassword(values.currentPassword, values.newPassword);
+      reset();
+      toast.success('Đã đổi mật khẩu. Các thiết bị khác đã được đăng xuất.');
     } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không đổi được mật khẩu');
-    } finally {
-      setIsSaving(false);
+      toast.error(applyApiErrors(caught, setError, 'Không đổi được mật khẩu'));
     }
-  };
+  });
 
   const onLogoutEverywhere = async () => {
-    if (!window.confirm('Đăng xuất khỏi tất cả thiết bị, kể cả thiết bị này?')) {
+    const ok = await confirm({
+      title: 'Đăng xuất mọi thiết bị?',
+      description: 'Tất cả phiên đăng nhập của tài khoản, kể cả thiết bị này, sẽ kết thúc.',
+      confirmLabel: 'Đăng xuất tất cả',
+      tone: 'danger',
+    });
+    if (!ok) {
       return;
     }
     await logoutEverywhere();
@@ -45,56 +53,29 @@ export const SecuritySection = () => {
   };
 
   return (
-    <section className="surface">
-      <p className="page-eyebrow">Bảo mật</p>
-      <h2>Mật khẩu và phiên đăng nhập</h2>
-      <form className="form-stack section-gap" onSubmit={onSubmit}>
-        <label>
-          Mật khẩu hiện tại
-          <input
-            autoComplete="current-password"
-            required
-            type="password"
-            value={currentPassword}
-            onChange={(event) => setCurrentPassword(event.target.value)}
-          />
-        </label>
-        <label>
-          Mật khẩu mới (8-100 ký tự, có chữ và số)
-          <input
-            autoComplete="new-password"
-            minLength={8}
-            required
-            type="password"
-            value={newPassword}
-            onChange={(event) => setNewPassword(event.target.value)}
-          />
-        </label>
-        <label>
-          Nhập lại mật khẩu mới
-          <input
-            autoComplete="new-password"
-            required
-            type="password"
-            value={confirmPassword}
-            onChange={(event) => setConfirmPassword(event.target.value)}
-          />
-        </label>
-        {error && <div className="error-box">{error}</div>}
-        {success && (
-          <div className="success-box" role="status" aria-live="polite">
-            {success}
-          </div>
-        )}
-        <div className="form-actions">
-          <button className="primary-button inline-button" type="submit" disabled={isSaving}>
+    <Card className="p-4 sm:p-6">
+      <h2 className="text-base font-semibold text-slate-900">Mật khẩu và phiên đăng nhập</h2>
+      <form className="mt-4 grid gap-4 sm:grid-cols-2" onSubmit={onSubmit} noValidate>
+        {/* lets password managers pair the new password with the account */}
+        <input type="text" name="username" autoComplete="username" value={user?.username ?? ''} readOnly hidden />
+        <Field label="Mật khẩu hiện tại" error={errors.currentPassword?.message} className="sm:col-span-2">
+          <Input type="password" autoComplete="current-password" {...register('currentPassword')} />
+        </Field>
+        <Field label="Mật khẩu mới" hint="8-100 ký tự, có chữ và số" error={errors.newPassword?.message}>
+          <Input type="password" autoComplete="new-password" {...register('newPassword')} />
+        </Field>
+        <Field label="Nhập lại mật khẩu mới" error={errors.confirmPassword?.message}>
+          <Input type="password" autoComplete="new-password" {...register('confirmPassword')} />
+        </Field>
+        <div className="flex flex-wrap gap-2 sm:col-span-2">
+          <Button type="submit" loading={formState.isSubmitting}>
             Đổi mật khẩu
-          </button>
-          <button className="secondary-button inline-button" type="button" onClick={onLogoutEverywhere}>
+          </Button>
+          <Button variant="danger" onClick={onLogoutEverywhere}>
             Đăng xuất mọi thiết bị
-          </button>
+          </Button>
         </div>
       </form>
-    </section>
+    </Card>
   );
 };

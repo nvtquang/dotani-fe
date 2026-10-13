@@ -1,273 +1,125 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { useQueries } from '@tanstack/react-query';
-import { CalendarDays, FileText, MapPin, MessageCircle, Plus, UsersRound } from 'lucide-react';
-import { Card, EmptyState, LoadingSkeleton, PageHeader, StatusBadge, UserAvatar } from '../components/ui';
-import { useEvents } from '../hooks/useEvents';
-import { useMyProfile } from '../hooks/useMembers';
-import { usePosts } from '../hooks/usePosts';
-import { eventService } from '../services/eventService';
+import { useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { CalendarPlus, FilePlus } from 'lucide-react';
+import { Alert, Button, ButtonLink, Card, EmptyState, PageHeader, Skeleton, Tabs, type TabItem } from '../components/ui';
+import { EventCard } from '../features/events/EventCard';
+import { PostCard } from '../features/posts/PostCard';
+import { useMyEventParticipations } from '../hooks/useEvents';
+import { useFeed } from '../hooks/useFeed';
+import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
+import { isManager, isWardRole } from '../routes/navigation';
 import { useAuth } from '../stores/AuthContext';
-import type { Event } from '../types/event';
-import type { Post } from '../types/post';
-import { eventStatusLabel, eventTypeLabel, postStatusLabel, postTypeLabel, roleLabel } from '../utils/labels';
-import { formatDateTime } from '../utils/dateTime';
-import { resolveAssetUrl } from '../utils/assetUrl';
+import type { FeedKind } from '../types/feed';
 
-const wardRoles = new Set(['WARD_SECRETARY', 'WARD_DEPUTY_SECRETARY']);
+const tabs: TabItem<FeedKind>[] = [
+  { value: 'ALL', label: 'Tất cả' },
+  { value: 'EVENT', label: 'Sự kiện' },
+  { value: 'POST', label: 'Bài viết' },
+];
 
-type FeedSort = 'newest' | 'oldest' | 'engagement';
-
-type FeedItem = {
-  id: string;
-  kind: 'event' | 'post';
-  title: string;
-  description?: string | null;
-  meta: string;
-  location?: string | null;
-  time?: string;
-  sortTime?: string;
-  to: string;
-  status: string;
-  statusLabel: string;
-  engagement: number;
-  engagementLabel: string;
-};
-
-const getPostEngagement = (post: Post) => {
-  const maybePost = post as Post & {
-    interactionCount?: number;
-    viewCount?: number;
-    commentCount?: number;
-    reactionCount?: number;
-  };
-
-  return maybePost.interactionCount ?? maybePost.reactionCount ?? maybePost.commentCount ?? maybePost.viewCount ?? 0;
-};
-
-const buildFeed = (
-  events: Event[],
-  posts: Post[],
-  eventParticipationCounts: Record<string, number>,
-  sort: FeedSort,
-): FeedItem[] => {
-  const items: FeedItem[] = [
-    ...events.map((event) => {
-      const goingCount = eventParticipationCounts[event.id] ?? 0;
-
-      return {
-        id: `event-${event.id}`,
-        kind: 'event' as const,
-        title: event.title,
-        description: event.description,
-        meta: eventTypeLabel[event.type],
-        location: event.location,
-        time: event.startTime,
-        sortTime: event.createdAt ?? event.startTime,
-        to: `/events/${event.id}`,
-        status: event.status,
-        statusLabel: eventStatusLabel[event.status],
-        engagement: goingCount,
-        engagementLabel: `${goingCount} lượt tham gia`,
-      };
-    }),
-    ...posts.map((post) => {
-      const engagement = getPostEngagement(post);
-
-      return {
-        id: `post-${post.id}`,
-        kind: 'post' as const,
-        title: post.title,
-        description: post.content,
-        meta: postTypeLabel[post.type],
-        time: post.createdAt,
-        sortTime: post.createdAt,
-        to: `/posts/${post.id}`,
-        status: post.status,
-        statusLabel: postStatusLabel[post.status],
-        engagement,
-        engagementLabel: `${engagement} lượt tương tác`,
-      };
-    }),
-  ];
-
-  return items.sort((left, right) => {
-    if (sort === 'engagement') {
-      const engagementDiff = right.engagement - left.engagement;
-      if (engagementDiff !== 0) {
-        return engagementDiff;
-      }
-    }
-
-    const leftTime = left.sortTime ? new Date(left.sortTime).getTime() : 0;
-    const rightTime = right.sortTime ? new Date(right.sortTime).getTime() : 0;
-    return sort === 'oldest' ? leftTime - rightTime : rightTime - leftTime;
-  });
-};
+const FeedSkeleton = () => (
+  <Card className="space-y-3 p-4" >
+    <div className="flex gap-3">
+      <Skeleton className="size-14 rounded-xl" />
+      <div className="flex-1 space-y-2">
+        <Skeleton className="h-4 w-1/3" />
+        <Skeleton className="h-5 w-3/4" />
+        <Skeleton className="h-4 w-1/2" />
+      </div>
+    </div>
+  </Card>
+);
 
 export const DashboardPage = () => {
-  const { user } = useAuth();
-  const profileQuery = useMyProfile(Boolean(user?.memberId));
-  const profile = profileQuery.data;
-  const displayName = profile?.fullName ?? user?.username;
-  const avatarUrl = resolveAssetUrl(profile?.avatarUrl);
-  const [feedSort, setFeedSort] = useState<FeedSort>('newest');
-  const eventsQuery = useEvents({ page: 0, size: 40, upcoming: false, sort: 'createdAt,desc' });
-  const postsQuery = usePosts({ page: 0, size: 40 });
-  const events = eventsQuery.data?.content ?? [];
-  const posts = postsQuery.data?.content ?? [];
-  const isWard = Boolean(user?.role && wardRoles.has(user.role));
-
-  const participationQueries = useQueries({
-    queries: events.map((event) => ({
-      queryKey: ['events', 'dashboard-feed', event.id, 'participation-summary'] as const,
-      queryFn: () => eventService.participationSummary(event.id),
-      enabled: Boolean(event.id),
-      staleTime: 60_000,
-    })),
-  });
-
-  const eventParticipationCounts = useMemo(
-    () =>
-      events.reduce<Record<string, number>>((accumulator, event, index) => {
-        accumulator[event.id] = participationQueries[index]?.data?.going ?? 0;
-        return accumulator;
-      }, {}),
-    [events, participationQueries],
+  const { role } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const kind = (tabs.find((tab) => tab.value === searchParams.get('tab'))?.value ?? 'ALL') as FeedKind;
+  const feed = useFeed(kind);
+  const manager = isManager(role);
+  const participations = useMyEventParticipations(role === 'MEMBER');
+  const myStatusByEvent = useMemo(
+    () => new Map((participations.data ?? []).map((participation) => [participation.eventId, participation.status])),
+    [participations.data],
   );
 
-  const feed = useMemo(
-    () => buildFeed(events, posts, eventParticipationCounts, feedSort),
-    [eventParticipationCounts, events, posts, feedSort],
-  );
-
-  const isLoading = eventsQuery.isLoading || postsQuery.isLoading;
-  const isError = eventsQuery.isError || postsQuery.isError;
+  const items = feed.data?.pages.flatMap((page) => page.items) ?? [];
+  const sentinelRef = useInfiniteScroll(() => {
+    if (feed.hasNextPage && !feed.isFetchingNextPage) {
+      void feed.fetchNextPage();
+    }
+  }, Boolean(feed.hasNextPage));
 
   return (
-    <div className="dashboard-feed-shell">
+    <>
       <PageHeader
-        eyebrow="Tổng quan"
-        title="Bảng tin hoạt động"
+        title="Bảng tin"
+        description="Sự kiện, thông báo và hoạt động mới nhất của Đoàn phường Thượng Cát"
         actions={
-          isWard && (
+          manager && (
             <>
-              <Link className="secondary-button inline-button" to="/events">
-                <CalendarDays size={17} aria-hidden="true" />
-                Quản lý sự kiện
-              </Link>
-              <Link className="secondary-button inline-button" to="/posts">
-                <FileText size={17} aria-hidden="true" />
-                Quản lý bài viết
-              </Link>
+              <ButtonLink to="/events?create=1" variant="secondary">
+                <CalendarPlus size={17} aria-hidden="true" />
+                Tạo sự kiện
+              </ButtonLink>
+              {isWardRole(role) && (
+                <ButtonLink to="/posts?create=1" variant="secondary">
+                  <FilePlus size={17} aria-hidden="true" />
+                  Tạo bài viết
+                </ButtonLink>
+              )}
             </>
           )
         }
       />
 
-      <div className={isWard ? 'feed-layout' : 'feed-layout feed-layout-readable'}>
-        <aside className="feed-rail">
-          <Link className="feed-profile-link" to="/profile" title="Mở hồ sơ cá nhân">
-          <Card className="feed-profile-card">
-            <UserAvatar name={displayName} src={avatarUrl} size="md" />
-            <div>
-              <strong>{displayName ?? 'DOTANI'}</strong>
-              <span>{user?.role ? roleLabel[user.role] : 'Đoàn viên'}</span>
-            </div>
-          </Card>
-          </Link>
-          <Card className="feed-filter-card">
-            <span>Sắp xếp bảng tin</span>
-            <button className={feedSort === 'newest' ? 'feed-sort active' : 'feed-sort'} type="button" onClick={() => setFeedSort('newest')}>
-              Mới nhất
-            </button>
-            <button className={feedSort === 'oldest' ? 'feed-sort active' : 'feed-sort'} type="button" onClick={() => setFeedSort('oldest')}>
-              Lâu nhất
-            </button>
-            <button className={feedSort === 'engagement' ? 'feed-sort active' : 'feed-sort'} type="button" onClick={() => setFeedSort('engagement')}>
-              Nhiều tương tác
-            </button>
-          </Card>
-        </aside>
+      <div className="mx-auto max-w-2xl">
+        <Tabs
+          label="Lọc bảng tin"
+          idPrefix="feed-tab"
+          items={tabs}
+          value={kind}
+          onChange={(value) => setSearchParams(value === 'ALL' ? {} : { tab: value }, { replace: true })}
+        />
 
-        <section className="feed-column">
-          <Card className="feed-composer">
-            <UserAvatar name={displayName} src={avatarUrl} size="sm" />
-            <div>
-              <strong>Bảng tin Phường Thượng Cát</strong>
-              <span>Sự kiện, thông báo và báo cáo hoạt động mới nhất</span>
-            </div>
-          </Card>
+        <section role="tabpanel" aria-labelledby={`feed-tab-${kind}`} aria-busy={feed.isLoading} className="mt-4 flex flex-col gap-3">
+          {feed.isLoading && Array.from({ length: 3 }).map((_, index) => <FeedSkeleton key={index} />)}
 
-          {isLoading && <Card><LoadingSkeleton rows={7} /></Card>}
-          {isError && <div className="error-box">Không thể tải bảng tin. Vui lòng thử lại sau.</div>}
-          {!isLoading && !isError && feed.length === 0 && <EmptyState title="Chưa có sự kiện hoặc bài viết" />}
-
-          {!isLoading && !isError && feed.length > 0 && (
-            <div className="feed-list social-feed-list">
-              {feed.map((item) => (
-                <Link className="feed-item social-feed-item" key={item.id} to={item.to}>
-                  <div className="feed-card-header">
-                    <div className={`feed-icon feed-icon-${item.kind}`}>
-                      {item.kind === 'event' ? (
-                        <CalendarDays size={20} aria-hidden="true" />
-                      ) : (
-                        <FileText size={20} aria-hidden="true" />
-                      )}
-                    </div>
-                    <div>
-                      <strong>{item.kind === 'event' ? 'Sự kiện' : 'Bài viết'}</strong>
-                      <span>
-                        {item.meta}
-                        {item.time ? ` · ${formatDateTime(item.time)}` : ''}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="feed-body">
-                    <h2>{item.title}</h2>
-                    {item.description && <p>{item.description}</p>}
-                  </div>
-
-                  <div className="feed-footer">
-                    <StatusBadge value={item.status} label={item.statusLabel} />
-                    {item.location && (
-                      <span>
-                        <MapPin size={15} aria-hidden="true" />
-                        {item.location}
-                      </span>
-                    )}
-                    <span>
-                      {item.kind === 'event' ? (
-                        <UsersRound size={15} aria-hidden="true" />
-                      ) : (
-                        <MessageCircle size={15} aria-hidden="true" />
-                      )}
-                      {item.engagementLabel}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
+          {feed.isError && (
+            <Alert>
+              Không thể tải bảng tin.{' '}
+              <button type="button" className="font-semibold underline" onClick={() => void feed.refetch()}>
+                Thử lại
+              </button>
+            </Alert>
           )}
-        </section>
 
-        {isWard && (
-          <aside className="feed-rail feed-action-rail">
-            <Card className="feed-filter-card">
-              <span>Thao tác nhanh</span>
-              <Link className="feed-sort" to="/events">
-                <Plus size={15} aria-hidden="true" />
-                Tạo sự kiện
-              </Link>
-              <Link className="feed-sort" to="/posts">
-                <Plus size={15} aria-hidden="true" />
-                Tạo bài viết
-              </Link>
+          {!feed.isLoading && !feed.isError && items.length === 0 && (
+            <Card>
+              <EmptyState
+                title={kind === 'POST' ? 'Chưa có bài viết' : kind === 'EVENT' ? 'Chưa có sự kiện' : 'Bảng tin còn trống'}
+                description="Nội dung mới từ Đoàn phường và tổ dân phố sẽ xuất hiện ở đây."
+              />
             </Card>
-          </aside>
-        )}
+          )}
+
+          {items.map((item) =>
+            item.kind === 'EVENT' ? (
+              <EventCard key={`event-${item.event.id}`} event={item.event} showStatus={manager} myStatus={myStatusByEvent.get(item.event.id)} />
+            ) : (
+              <PostCard key={`post-${item.post.id}`} post={item.post} showStatus={manager} />
+            ),
+          )}
+
+          <div ref={sentinelRef} aria-hidden="true" />
+          {feed.isFetchingNextPage && <FeedSkeleton />}
+          {feed.hasNextPage && !feed.isFetchingNextPage && (
+            <Button variant="secondary" className="self-center" onClick={() => void feed.fetchNextPage()}>
+              Xem thêm
+            </Button>
+          )}
+          {!feed.hasNextPage && items.length > 0 && <p className="py-4 text-center text-sm text-slate-600">Bạn đã xem hết bảng tin.</p>}
+        </section>
       </div>
-    </div>
+    </>
   );
 };

@@ -1,232 +1,171 @@
-import { FormEvent, useEffect, useRef, useState } from 'react';
-import { QrCode, Upload } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { QrCode, Trash2, Upload } from 'lucide-react';
 import { httpClient } from '../../api/httpClient';
-import { EmptyState } from '../../components/ui';
+import { Alert, Button, Card, Dialog, Field, Input, LoadingSkeleton } from '../../components/ui';
 import type { BankingFormValues, BankingInfo } from '../../types/banking';
+import { applyApiErrors, optionalText } from '../../utils/forms';
+
+const schema = z.object({
+  bankName: optionalText(255),
+  bankCode: optionalText(50),
+  accountNumber: z
+    .string()
+    .trim()
+    .max(50, 'Tối đa 50 ký tự')
+    .regex(/^[0-9 ]*$/, 'Số tài khoản chỉ gồm chữ số'),
+  accountHolderName: optionalText(255),
+});
+
+type Values = z.infer<typeof schema>;
+
+const toValues = (banking?: BankingInfo): Values => ({
+  bankName: banking?.bankName ?? '',
+  bankCode: banking?.bankCode ?? '',
+  accountNumber: banking?.accountNumber ?? '',
+  accountHolderName: banking?.accountHolderName ?? '',
+});
 
 type BankingSectionProps = {
   title?: string;
   banking?: BankingInfo;
   isLoading?: boolean;
-  isEditable?: boolean;
-  isSaving?: boolean;
-  isUploading?: boolean;
-  isDeleting?: boolean;
   errorMessage?: string | null;
-  successMessage?: string | null;
-  onSave?: (values: BankingFormValues) => void;
-  onUploadQr?: (file: File) => void;
-  onDeleteQr?: () => void;
+  /** omitted: read-only view (officers looking at a member) */
+  edit?: {
+    isUploading: boolean;
+    isDeleting: boolean;
+    onSave: (values: BankingFormValues) => Promise<void>;
+    onUploadQr: (file: File) => void;
+    onDeleteQr: () => void;
+    onError: (message: string) => void;
+  };
 };
 
-export const BankingSection = ({
-  title = 'Thông tin ngân hàng',
-  banking,
-  isLoading,
-  isEditable,
-  isSaving,
-  isUploading,
-  isDeleting,
-  errorMessage,
-  successMessage,
-  onSave,
-  onUploadQr,
-  onDeleteQr,
-}: BankingSectionProps) => {
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [isQrOpen, setIsQrOpen] = useState(false);
-  const [values, setValues] = useState<BankingFormValues>({
-    bankName: banking?.bankName ?? '',
-    bankCode: banking?.bankCode ?? '',
-    accountNumber: banking?.accountNumber ?? '',
-    accountHolderName: banking?.accountHolderName ?? '',
-  });
-  const [qrUrl, setQrUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    setValues({
-      bankName: banking?.bankName ?? '',
-      bankCode: banking?.bankCode ?? '',
-      accountNumber: banking?.accountNumber ?? '',
-      accountHolderName: banking?.accountHolderName ?? '',
-    });
-  }, [banking]);
-
+/** The QR image is served behind auth, so it is fetched as a blob instead of a plain <img src>. */
+const useProtectedImage = (path?: string | null) => {
+  const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
     let objectUrl: string | null = null;
-    let isActive = true;
-
-    setQrUrl(null);
-    if (!banking?.bankQrImageUrl) {
-      return undefined;
-    }
-
+    let active = true;
+    setUrl(null);
+    if (!path) return undefined;
     httpClient
-      .get<Blob>(banking.bankQrImageUrl, { responseType: 'blob' })
+      .get<Blob>(path, { responseType: 'blob' })
       .then((response) => {
-        if (!isActive) {
-          return;
-        }
+        if (!active) return;
         objectUrl = URL.createObjectURL(response.data);
-        setQrUrl(objectUrl);
+        setUrl(objectUrl);
       })
-      .catch(() => {
-        if (isActive) {
-          setQrUrl(null);
-        }
-      });
-
+      .catch(() => active && setUrl(null));
     return () => {
-      isActive = false;
-      if (objectUrl) {
-        URL.revokeObjectURL(objectUrl);
-      }
+      active = false;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [banking?.bankQrImageUrl]);
+  }, [path]);
+  return url;
+};
 
-  const updateField = (field: keyof BankingFormValues, value: string) => {
-    setValues((current) => ({ ...current, [field]: value }));
-  };
+export const BankingSection = ({ title = 'Thông tin ngân hàng', banking, isLoading, errorMessage, edit }: BankingSectionProps) => {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isQrOpen, setIsQrOpen] = useState(false);
+  const qrUrl = useProtectedImage(banking?.bankQrImageUrl);
+  const { register, handleSubmit, reset, setError, formState } = useForm<Values>({ resolver: zodResolver(schema), defaultValues: toValues(banking) });
+  const errors = formState.errors;
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    onSave?.(values);
-  };
+  useEffect(() => reset(toValues(banking)), [banking, reset]);
 
-  if (isLoading) {
-    return <section className="surface section-gap">Đang tải thông tin ngân hàng...</section>;
-  }
+  const submit = handleSubmit(async (values) => {
+    if (!edit) return;
+    try {
+      await edit.onSave(values);
+    } catch (caught) {
+      edit.onError(applyApiErrors(caught, setError, 'Không thể lưu thông tin ngân hàng'));
+    }
+  });
 
   return (
-    <section className="surface section-gap">
-      <div className="section-heading">
-        <div>
-          <p className="page-eyebrow">QR Banking</p>
-          <h2>{title}</h2>
-          <p className="page-description">
-            QR ngân hàng là thông tin cá nhân phục vụ cán bộ chuyển khoản hỗ trợ, không phải dịch vụ thanh toán.
-          </p>
-          {banking?.fullName && <p className="page-description">{banking.fullName}</p>}
-        </div>
-      </div>
+    <Card className="p-4 sm:p-6">
+      <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+      <p className="mt-1 text-sm text-slate-600">Dùng khi cán bộ cần chuyển khoản hỗ trợ; không phải dịch vụ thanh toán.</p>
 
-      {errorMessage && <div className="error-box">{errorMessage}</div>}
-      {successMessage && (
-        <div className="success-box" role="status" aria-live="polite">
-          {successMessage}
+      {errorMessage && <Alert className="mt-4">{errorMessage}</Alert>}
+      {isLoading ? (
+        <div className="mt-4">
+          <LoadingSkeleton rows={4} />
         </div>
-      )}
+      ) : (
+        <div className="mt-4 grid gap-6 md:grid-cols-[minmax(0,1fr)_12rem]">
+          <form className="grid gap-4 sm:grid-cols-2" onSubmit={submit} noValidate>
+            <Field label="Ngân hàng" error={errors.bankName?.message}>
+              <Input disabled={!edit} {...register('bankName')} />
+            </Field>
+            <Field label="Mã ngân hàng" error={errors.bankCode?.message}>
+              <Input disabled={!edit} {...register('bankCode')} />
+            </Field>
+            <Field label="Số tài khoản" error={errors.accountNumber?.message}>
+              <Input disabled={!edit} inputMode="numeric" {...register('accountNumber')} />
+            </Field>
+            <Field label="Chủ tài khoản" error={errors.accountHolderName?.message}>
+              <Input disabled={!edit} {...register('accountHolderName')} />
+            </Field>
+            {edit && (
+              <div className="sm:col-span-2">
+                <Button type="submit" loading={formState.isSubmitting} disabled={!formState.isDirty}>
+                  Lưu thông tin ngân hàng
+                </Button>
+              </div>
+            )}
+          </form>
 
-      <div className="banking-layout">
-        <form className="member-form" onSubmit={handleSubmit}>
-          <label>
-            Ngân hàng
-            <input
-              disabled={!isEditable}
-              maxLength={255}
-              value={values.bankName ?? ''}
-              onChange={(event) => updateField('bankName', event.target.value)}
-            />
-          </label>
-          <label>
-            Mã ngân hàng
-            <input
-              disabled={!isEditable}
-              maxLength={50}
-              value={values.bankCode ?? ''}
-              onChange={(event) => updateField('bankCode', event.target.value)}
-            />
-          </label>
-          <label>
-            Số tài khoản
-            <input
-              disabled={!isEditable}
-              maxLength={50}
-              value={values.accountNumber ?? ''}
-              onChange={(event) => updateField('accountNumber', event.target.value)}
-            />
-          </label>
-          <label>
-            Chủ tài khoản
-            <input
-              disabled={!isEditable}
-              maxLength={255}
-              value={values.accountHolderName ?? ''}
-              onChange={(event) => updateField('accountHolderName', event.target.value)}
-            />
-          </label>
-          {isEditable && (
-            <div className="form-actions form-wide">
-              <button className="primary-button inline-button" type="submit" disabled={isSaving}>
-                Lưu thông tin ngân hàng
-              </button>
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex aspect-square w-40 items-center justify-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-slate-50">
+              {qrUrl ? (
+                <button type="button" onClick={() => setIsQrOpen(true)} aria-label="Phóng to mã QR" className="size-full">
+                  <img src={qrUrl} alt="Mã QR ngân hàng" className="size-full object-contain" />
+                </button>
+              ) : (
+                <span className="flex flex-col items-center gap-1 text-xs text-slate-600">
+                  <QrCode size={28} aria-hidden="true" />
+                  Chưa có QR
+                </span>
+              )}
             </div>
-          )}
-        </form>
-
-        <div className="qr-panel">
-          <div className="qr-preview">
-            {qrUrl ? (
-              <img src={qrUrl} alt="QR Banking" />
-            ) : (
-              <EmptyState title="Chưa có QR" description="Tải ảnh QR ngân hàng nếu cần." />
-            )}
-          </div>
-          <div className="form-actions qr-actions">
-            {qrUrl && (
-              <button className="primary-button inline-button" type="button" onClick={() => setIsQrOpen(true)}>
-                <QrCode size={17} aria-hidden="true" />
-                Mở QR
-              </button>
-            )}
-            {isEditable && (
-              <>
+            {edit && (
+              <div className="flex gap-2">
                 <input
                   ref={fileInputRef}
-                  className="visually-hidden"
+                  className="sr-only"
                   type="file"
+                  tabIndex={-1}
+                  aria-hidden="true"
                   accept="image/jpeg,image/png,image/webp"
                   onChange={(event) => {
                     const file = event.target.files?.[0];
-                    if (file) {
-                      onUploadQr?.(file);
-                      event.target.value = '';
-                    }
+                    event.target.value = '';
+                    if (file) edit.onUploadQr(file);
                   }}
                 />
-                <button
-                  className="secondary-button inline-button"
-                  type="button"
-                  disabled={isUploading}
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Upload size={17} aria-hidden="true" />
+                <Button size="sm" variant="secondary" loading={edit.isUploading} onClick={() => fileInputRef.current?.click()}>
+                  <Upload size={16} aria-hidden="true" />
                   {qrUrl ? 'Thay QR' : 'Tải QR'}
-                </button>
-                <button
-                  className="secondary-button inline-button"
-                  type="button"
-                  disabled={isDeleting || !qrUrl}
-                  onClick={onDeleteQr}
-                >
-                  Xóa QR
-                </button>
-              </>
+                </Button>
+                {qrUrl && (
+                  <Button size="icon" variant="ghost" loading={edit.isDeleting} onClick={edit.onDeleteQr} aria-label="Xóa QR">
+                    <Trash2 size={16} aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </div>
-      </div>
-
-      {isQrOpen && qrUrl && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setIsQrOpen(false)}>
-          <div className="qr-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <img src={qrUrl} alt="QR Banking phóng to" />
-            <button className="secondary-button inline-button" type="button" onClick={() => setIsQrOpen(false)}>
-              Đóng
-            </button>
-          </div>
-        </div>
       )}
-    </section>
+
+      <Dialog open={isQrOpen && Boolean(qrUrl)} onClose={() => setIsQrOpen(false)} title="Mã QR ngân hàng" size="sm">
+        {qrUrl && <img src={qrUrl} alt="Mã QR ngân hàng phóng to" className="mx-auto w-full max-w-xs" />}
+      </Dialog>
+    </Card>
   );
 };

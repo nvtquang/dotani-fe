@@ -1,280 +1,257 @@
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { CalendarPlus, Eye, Pencil } from 'lucide-react';
+import { useId, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { CalendarDays, CalendarPlus, List } from 'lucide-react';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
-import { EmptyState, LoadingSkeleton, PageHeader, StatusBadge } from '../../components/ui';
-import { EventForm } from '../../features/events/EventForm';
-import { useCreateEvent, useDeleteEvent, useEvents } from '../../hooks/useEvents';
+import { Alert, Button, Card, Dialog, EmptyState, PageHeader, Select, Skeleton, Tabs, cn, useToast, type TabItem } from '../../components/ui';
+import { EventCalendar, calendarRange, startOfMonth } from '../../features/events/EventCalendar';
+import { EventCard } from '../../features/events/EventCard';
+import { EventForm, EventFormFooter } from '../../features/events/EventForm';
+import { useCreateEvent, useEvents, useInfiniteEvents, useMyEventParticipations } from '../../hooks/useEvents';
+import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useOrganizations } from '../../hooks/useOrganizations';
+import { isManager, isTdpRole, isWardRole } from '../../routes/navigation';
 import { useAuth } from '../../stores/AuthContext';
-import type { ApiError } from '../../types/api';
 import type { EventFilters, EventFormValues, EventStatus, EventType } from '../../types/event';
-import type { OrganizationUnit } from '../../types/organization';
-import { eventStatusLabel, eventTypeLabel } from '../../utils/labels';
-import { formatDateTime } from '../../utils/dateTime';
 import { toApiError } from '../../utils/apiError';
+import { formatDate, isSameDay } from '../../utils/dateTime';
+import { eventStatusLabel, eventTypeLabel } from '../../utils/labels';
 
-const pageSize = 10;
+type EventTab = 'upcoming' | 'past' | 'mine';
 
-// Ward officers create events for any unit; TDP secretaries and deputies for their own TDP (fixed below).
-const canManageEvents = (role: string | null) =>
-  role === 'WARD_SECRETARY' ||
-  role === 'WARD_DEPUTY_SECRETARY' ||
-  role === 'TDP_SECRETARY' ||
-  role === 'TDP_DEPUTY_SECRETARY';
+const tabs: TabItem<EventTab>[] = [
+  { value: 'upcoming', label: 'Sắp diễn ra' },
+  { value: 'past', label: 'Đã qua' },
+  { value: 'mine', label: 'Tôi tham gia' },
+];
 
-const getVisibleOrganizations = (
-  organizations: OrganizationUnit[],
-  role: string | null,
-  tdpId?: string | null,
-) => {
-  const branches = organizations.filter((organization) => organization.type === 'YOUTH_UNION_BRANCH');
-
-  if (role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY') {
-    return branches.filter((organization) => organization.id === tdpId);
-  }
-
-  return branches;
+const tabFilters: Record<EventTab, Pick<EventFilters, 'when' | 'participating' | 'sort'>> = {
+  upcoming: { when: 'UPCOMING', sort: 'startTime,asc' },
+  past: { when: 'PAST', sort: 'startTime,desc' },
+  mine: { participating: true, sort: 'startTime,desc' },
 };
+
+const CardSkeleton = () => (
+  <Card className="flex gap-3 p-4">
+    <Skeleton className="h-18 w-14 rounded-xl" />
+    <div className="flex-1 space-y-2">
+      <Skeleton className="h-4 w-1/4" />
+      <Skeleton className="h-5 w-2/3" />
+      <Skeleton className="h-4 w-1/2" />
+    </div>
+  </Card>
+);
 
 export const EventListPage = () => {
   const { role, user } = useAuth();
-  const [page, setPage] = useState(0);
+  const navigate = useNavigate();
+  const toast = useToast();
+  const formId = useId();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = (tabs.find((item) => item.value === searchParams.get('tab'))?.value ?? 'upcoming') as EventTab;
+  const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'list';
+  const isCreateOpen = searchParams.get('create') === '1';
+
+  const manager = isManager(role);
   const [type, setType] = useState<EventType | ''>('');
   const [status, setStatus] = useState<EventStatus | ''>('');
   const [organization, setOrganization] = useState('');
-  const [date, setDate] = useState('');
-  const [upcoming, setUpcoming] = useState(true);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [formError, setFormError] = useState<ApiError | null>(null);
+  const [month, setMonth] = useState(() => startOfMonth(new Date()));
+  const [selectedDay, setSelectedDay] = useState(() => new Date());
+  const [formError, setFormError] = useState<string | null>(null);
 
-  const organizationsQuery = useOrganizations();
-  const organizations = useMemo(
-    () => getVisibleOrganizations(organizationsQuery.data ?? [], role, user?.tdpId),
-    [organizationsQuery.data, role, user?.tdpId],
+  const organizationsQuery = useOrganizations(manager);
+  const organizations = organizationsQuery.data ?? [];
+  const branches = organizations.filter((item) => item.type === 'YOUTH_UNION_BRANCH');
+  const fixedOrganizationId = isTdpRole(role) ? user?.tdpId : undefined;
+
+  const updateParams = (changes: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(changes).forEach(([key, value]) => (value === null ? next.delete(key) : next.set(key, value)));
+    setSearchParams(next, { replace: true });
+  };
+
+  const baseFilters = { type, status, organization: organization || undefined, size: 10 };
+
+  const listQuery = useInfiniteEvents({ ...baseFilters, ...tabFilters[tab] }, view === 'list');
+  const { start, end } = calendarRange(month);
+  const calendarQuery = useEvents(
+    { ...baseFilters, from: start.toISOString(), to: end.toISOString(), page: 0, size: 300, sort: 'startTime,asc' },
+    view === 'calendar',
   );
-  const fixedOrganizationId =
-    role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY' ? user?.tdpId : undefined;
-  const formFixedOrganizationId = fixedOrganizationId ?? (organization || undefined);
-  const canManage = canManageEvents(role);
-
-  const filters: EventFilters = {
-    type,
-    organization: fixedOrganizationId ?? organization,
-    status,
-    date,
-    upcoming,
-    page,
-    size: pageSize,
-  };
-  const eventsQuery = useEvents(filters);
+  const participations = useMyEventParticipations(Boolean(user?.memberId));
+  const myStatusByEvent = useMemo(
+    () => new Map((participations.data ?? []).map((participation) => [participation.eventId, participation.status])),
+    [participations.data],
+  );
   const createEvent = useCreateEvent();
-  const deleteEvent = useDeleteEvent();
 
-  const events = eventsQuery.data?.content ?? [];
-  const totalPages = eventsQuery.data?.totalPages ?? 0;
+  const events = listQuery.data?.pages.flatMap((page) => page.content) ?? [];
+  const calendarEvents = calendarQuery.data?.content ?? [];
+  const dayEvents = calendarEvents.filter((event) => isSameDay(new Date(event.startTime), selectedDay));
 
-  const handleCreate = async (values: EventFormValues) => {
+  const sentinelRef = useInfiniteScroll(() => {
+    if (listQuery.hasNextPage && !listQuery.isFetchingNextPage) {
+      void listQuery.fetchNextPage();
+    }
+  }, Boolean(listQuery.hasNextPage) && view === 'list');
+
+  const closeCreate = () => {
     setFormError(null);
-    try {
-      const organizationIds = formFixedOrganizationId
-        ? [formFixedOrganizationId]
-        : values.organizationIds?.length
-          ? values.organizationIds
-          : [values.organizationId];
+    updateParams({ create: null });
+  };
 
-      for (const organizationId of organizationIds) {
-        await createEvent.mutateAsync({
-          ...values,
-          organizationId,
-          organizationIds: undefined,
-        });
-      }
-      setIsCreateOpen(false);
-    } catch (error) {
-      setFormError(toApiError(error));
+  const handleCreate = async (values: EventFormValues, organizationIds: string[]) => {
+    setFormError(null);
+    let created = null;
+    for (const organizationId of organizationIds) {
+      created = await createEvent.mutateAsync({ ...values, organizationId });
+    }
+    toast.success(organizationIds.length > 1 ? `Đã tạo ${organizationIds.length} sự kiện` : 'Đã tạo sự kiện');
+    closeCreate();
+    if (created && organizationIds.length === 1) {
+      navigate(`/events/${created.id}`);
     }
   };
 
-  const handleDelete = async (eventId: string) => {
-    if (!window.confirm('Xóa sự kiện này?')) {
-      return;
-    }
-
-    setFormError(null);
-    try {
-      await deleteEvent.mutateAsync(eventId);
-    } catch (error) {
-      setFormError(toApiError(error));
-    }
-  };
-
-  if (eventsQuery.error && toApiError(eventsQuery.error).status === 403) {
+  const error = view === 'list' ? listQuery.error : calendarQuery.error;
+  if (error && toApiError(error).status === 403) {
     return <ForbiddenMessage />;
   }
 
   return (
     <>
       <PageHeader
-        eyebrow="Hoạt động"
         title="Sự kiện"
-        description="Danh sách và sự kiện sắp tới theo phạm vi được phép."
         actions={
-          canManage && (
-            <button className="primary-button inline-button" type="button" onClick={() => setIsCreateOpen(true)}>
-              <CalendarPlus size={17} aria-hidden="true" />
-              Tạo sự kiện
-            </button>
-          )
+          <>
+            <div className="inline-flex rounded-lg border border-slate-300 bg-white p-0.5" role="group" aria-label="Kiểu hiển thị">
+              {(['list', 'calendar'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={view === value}
+                  onClick={() => updateParams({ view: value === 'list' ? null : value })}
+                  className={cn(
+                    'inline-flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium',
+                    view === value ? 'bg-brand-600 text-white' : 'text-slate-700 hover:bg-slate-100',
+                  )}
+                >
+                  {value === 'list' ? <List size={16} aria-hidden="true" /> : <CalendarDays size={16} aria-hidden="true" />}
+                  {value === 'list' ? 'Danh sách' : 'Lịch'}
+                </button>
+              ))}
+            </div>
+            {manager && (
+              <Button onClick={() => updateParams({ create: '1' })}>
+                <CalendarPlus size={17} aria-hidden="true" />
+                Tạo sự kiện
+              </Button>
+            )}
+          </>
         }
       />
 
-      <section className="surface toolbar events-toolbar">
-        <label>
-          Loại
-          <select value={type} onChange={(event) => { setType(event.target.value as EventType | ''); setPage(0); }}>
-            <option value="">Tất cả</option>
-            {(Object.keys(eventTypeLabel) as EventType[]).map((item) => (
-              <option key={item} value={item}>
-                {eventTypeLabel[item]}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          TDP
-          <select
-            disabled={Boolean(fixedOrganizationId)}
-            value={fixedOrganizationId ?? organization}
-            onChange={(event) => { setOrganization(event.target.value); setPage(0); }}
-          >
-            <option value="">Tất cả</option>
-            {organizations.map((item) => (
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Select aria-label="Loại sự kiện" className="sm:w-auto! sm:min-w-36" value={type} onChange={(event) => setType(event.target.value as EventType | '')}>
+          <option value="">Mọi loại</option>
+          {(Object.keys(eventTypeLabel) as EventType[]).map((item) => (
+            <option key={item} value={item}>
+              {eventTypeLabel[item]}
+            </option>
+          ))}
+        </Select>
+        {isWardRole(role) && (
+          <Select aria-label="Tổ dân phố" className="sm:w-auto! sm:min-w-40" value={organization} onChange={(event) => setOrganization(event.target.value)}>
+            <option value="">Mọi đơn vị</option>
+            {organizations
+              .filter((item) => item.type === 'WARD')
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} (toàn phường)
+                </option>
+              ))}
+            {branches.map((item) => (
               <option key={item.id} value={item.id}>
                 {item.name}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          Trạng thái
-          <select value={status} onChange={(event) => { setStatus(event.target.value as EventStatus | ''); setPage(0); }}>
-            <option value="">Tất cả</option>
+          </Select>
+        )}
+        {manager && (
+          <Select aria-label="Trạng thái" className="sm:w-auto! sm:min-w-36" value={status} onChange={(event) => setStatus(event.target.value as EventStatus | '')}>
+            <option value="">Mọi trạng thái</option>
             {(Object.keys(eventStatusLabel) as EventStatus[]).map((item) => (
               <option key={item} value={item}>
                 {eventStatusLabel[item]}
               </option>
             ))}
-          </select>
-        </label>
-        <label>
-          Ngày
-          <input type="date" value={date} onChange={(event) => { setDate(event.target.value); setPage(0); }} />
-        </label>
-        <label className="checkbox-label">
-          <input type="checkbox" checked={upcoming} onChange={(event) => { setUpcoming(event.target.checked); setPage(0); }} />
-          Sắp tới
-        </label>
-      </section>
+          </Select>
+        )}
+      </div>
 
-      {formError?.status === 403 && <ForbiddenMessage />}
-      {formError && formError.status !== 403 && <section className="error-box">{formError.message}</section>}
-
-      {isCreateOpen && (
-        <section className="surface section-gap">
-          <div className="section-heading">
-            <h2>Tạo sự kiện</h2>
-          </div>
-          <EventForm
-            organizations={organizations}
-            fixedOrganizationId={formFixedOrganizationId}
-            allowMultipleOrganizations={!formFixedOrganizationId}
-            isSubmitting={createEvent.isPending}
-            submitLabel="Tạo sự kiện"
-            onSubmit={handleCreate}
-            onCancel={() => setIsCreateOpen(false)}
+      {view === 'list' ? (
+        <div className="mx-auto max-w-3xl">
+          <Tabs label="Lọc sự kiện" idPrefix="event-tab" items={tabs} value={tab} onChange={(value) => updateParams({ tab: value === 'upcoming' ? null : value })} />
+          <section role="tabpanel" aria-labelledby={`event-tab-${tab}`} aria-busy={listQuery.isLoading} className="mt-4 flex flex-col gap-3">
+            {listQuery.isLoading && Array.from({ length: 3 }).map((_, index) => <CardSkeleton key={index} />)}
+            {listQuery.isError && <Alert>Không thể tải danh sách sự kiện.</Alert>}
+            {!listQuery.isLoading && !listQuery.isError && events.length === 0 && (
+              <Card>
+                <EmptyState
+                  title={tab === 'mine' ? 'Bạn chưa đăng ký sự kiện nào' : tab === 'past' ? 'Chưa có sự kiện đã qua' : 'Chưa có sự kiện sắp diễn ra'}
+                  description={tab === 'mine' ? 'Mở một sự kiện sắp diễn ra và bấm “Đăng ký tham gia”.' : undefined}
+                />
+              </Card>
+            )}
+            {events.map((event) => (
+              <EventCard key={event.id} event={event} showStatus={manager} myStatus={myStatusByEvent.get(event.id)} />
+            ))}
+            <div ref={sentinelRef} aria-hidden="true" />
+            {listQuery.isFetchingNextPage && <CardSkeleton />}
+            {listQuery.hasNextPage && !listQuery.isFetchingNextPage && (
+              <Button variant="secondary" className="self-center" onClick={() => void listQuery.fetchNextPage()}>
+                Xem thêm
+              </Button>
+            )}
+          </section>
+        </div>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
+          <EventCalendar
+            month={month}
+            onMonthChange={setMonth}
+            selectedDay={selectedDay}
+            onSelectDay={setSelectedDay}
+            events={calendarEvents}
+            isLoading={calendarQuery.isFetching}
           />
-        </section>
+          <section aria-live="polite" className="flex flex-col gap-3">
+            <h2 className="text-base font-semibold text-slate-900">{formatDate(selectedDay)}</h2>
+            {calendarQuery.isError && <Alert>Không thể tải lịch sự kiện.</Alert>}
+            {dayEvents.length === 0 && !calendarQuery.isLoading && <p className="text-sm text-slate-600">Không có sự kiện trong ngày này.</p>}
+            {dayEvents.map((event) => (
+              <EventCard key={event.id} event={event} showStatus={manager} myStatus={myStatusByEvent.get(event.id)} />
+            ))}
+          </section>
+        </div>
       )}
 
-      <section className="event-grid section-gap">
-        {eventsQuery.isLoading && (
-          <div className="surface">
-            <LoadingSkeleton rows={4} />
-          </div>
-        )}
-        {!eventsQuery.isLoading && events.length === 0 && (
-          <div className="surface">
-            <EmptyState title="Không có sự kiện" description="Thử thay đổi bộ lọc hoặc bỏ chọn sắp tới." />
-          </div>
-        )}
-        {events.map((event) => (
-          <article className="surface event-card" key={event.id}>
-            <div>
-              <StatusBadge value={event.status} label={eventStatusLabel[event.status]} />
-              <h2>{event.title}</h2>
-              <p>{event.location || 'Chưa có địa điểm'}</p>
-            </div>
-            <dl className="compact-list">
-              <div>
-                <dt>Loại</dt>
-                <dd>{eventTypeLabel[event.type]}</dd>
-              </div>
-              <div>
-                <dt>Bắt đầu</dt>
-                <dd>{formatDateTime(event.startTime)}</dd>
-              </div>
-              <div>
-                <dt>Kết thúc</dt>
-                <dd>{formatDateTime(event.endTime)}</dd>
-              </div>
-              <div>
-                <dt>Hạn đăng ký</dt>
-                <dd>{formatDateTime(event.registrationDeadline)}</dd>
-              </div>
-            </dl>
-            <div className="table-actions">
-              <Link className="text-action" to={`/events/${event.id}`}>
-                <Eye size={16} aria-hidden="true" />
-                Xem
-              </Link>
-              {canManage && (
-                <>
-                  <Link className="text-action" to={`/events/${event.id}?mode=edit`}>
-                    <Pencil size={16} aria-hidden="true" />
-                    Sửa
-                  </Link>
-                  <button className="danger-link" type="button" onClick={() => handleDelete(event.id)}>
-                    Xóa
-                  </button>
-                </>
-              )}
-            </div>
-          </article>
-        ))}
-      </section>
-
-      <div className="pagination">
-        <button
-          className="secondary-button inline-button"
-          type="button"
-          disabled={page === 0}
-          onClick={() => setPage((current) => Math.max(current - 1, 0))}
+      {manager && (
+        <Dialog
+          open={isCreateOpen}
+          onClose={closeCreate}
+          title="Tạo sự kiện"
+          size="lg"
+          footer={<EventFormFooter formId={formId} onCancel={closeCreate} submitLabel="Tạo sự kiện" isSubmitting={createEvent.isPending} />}
         >
-          Trước
-        </button>
-        <span>
-          Trang {totalPages === 0 ? 0 : page + 1} / {totalPages}
-        </span>
-        <button
-          className="secondary-button inline-button"
-          type="button"
-          disabled={totalPages === 0 || page >= totalPages - 1}
-          onClick={() => setPage((current) => current + 1)}
-        >
-          Sau
-        </button>
-      </div>
+          {formError && <Alert className="mb-4">{formError}</Alert>}
+          {organizationsQuery.isLoading ? (
+            <Skeleton className="h-64" />
+          ) : (
+            <EventForm formId={formId} organizations={organizations} fixedOrganizationId={fixedOrganizationId} onSubmit={handleCreate} onError={setFormError} />
+          )}
+        </Dialog>
+      )}
     </>
   );
 };

@@ -1,0 +1,93 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Everything else uses Tailwind's scales:
+ * spacing 4px steps (p-1 = 4px), font sizes text-xs..text-3xl, radius rounded-md..rounded-2xl.
+ * Colours below are checked against WCAG AA on white (>= 4.5:1 for text):
+ * brand-600 5.9:1, brand-700 7.8:1, accent-600 5.9:1, slate-600 7.6:1.
+ */
+@theme {
+  --font-sans: 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+
+  --color-brand-50: #eef5fd;
+  --color-brand-100: #d8e8fb;
+  --color-brand-200: #b3d1f6;
+  --color-brand-300: #7fb1ee;
+  --color-brand-500: #1f74d6;
+  --color-brand-600: #0b5ebe;
+  --color-brand-700: #094b98;
+  --color-brand-800: #0b3d78;
+  --color-brand-900: #0c2f5a;
+
+  --color-accent-50: #fdeef0;
+  --color-accent-100: #fbd5da;
+  --color-accent-600: #c8102e;
+  --color-accent-700: #a10c24;
+
+  --color-surface: #ffffff;
+  --color-canvas: #f4f6fa;
+
+  --radius-card: 0.875rem;
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.05), 0 1px 3px rgb(15 23 42 / 0.05);
+  --shadow-overlay: 0 12px 32px rgb(15 23 42 / 0.18);
+
+  --animate-fade-in: fade-in 150ms ease-out;
+  --animate-slide-up: slide-up 180ms ease-out;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes slide-up {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    @apply min-h-dvh bg-canvas text-slate-900 antialiased;
+  }
+
+  /* One visible focus ring for every interactive element, keyboard only. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+
+  dialog::backdrop {
+    background: rgb(15 23 42 / 0.45);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

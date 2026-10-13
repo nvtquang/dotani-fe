@@ -1,77 +1,64 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Alert, Button, Field, Input } from '../components/ui';
 import { authService } from '../services/authService';
-import { toApiError } from '../utils/apiError';
+import { applyApiErrors, passwordSchema } from '../utils/forms';
+
+const schema = z
+  .object({ newPassword: passwordSchema, confirmPassword: z.string() })
+  .refine((values) => values.newPassword === values.confirmPassword, { path: ['confirmPassword'], message: 'Mật khẩu nhập lại không khớp' });
 
 export const ResetPasswordPage = () => {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token') ?? '';
-  const [newPassword, setNewPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [isDone, setIsDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
+  const { register, handleSubmit, setError: setFieldError, formState } = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: { newPassword: '', confirmPassword: '' },
+  });
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const onSubmit = handleSubmit(async ({ newPassword }) => {
     setError(null);
-    if (newPassword !== confirmPassword) {
-      setError('Mật khẩu nhập lại không khớp.');
-      return;
-    }
-    setIsSaving(true);
     try {
       await authService.resetPassword(token, newPassword);
       setIsDone(true);
     } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không đặt lại được mật khẩu');
-    } finally {
-      setIsSaving(false);
+      setError(applyApiErrors(caught, setFieldError, 'Không đặt lại được mật khẩu'));
     }
-  };
+  });
 
   return (
     <>
-      <p className="page-eyebrow">DOTANI Thượng Cát</p>
-      <h1 className="page-title">Đặt lại mật khẩu</h1>
+      <h1 className="text-xl font-bold text-slate-900">Đặt lại mật khẩu</h1>
       {!token ? (
-        <div className="error-box section-gap">Liên kết không hợp lệ. Vui lòng yêu cầu liên kết mới.</div>
+        <Alert className="mt-4">Liên kết không hợp lệ. Vui lòng yêu cầu liên kết mới.</Alert>
       ) : isDone ? (
-        <div className="success-box section-gap" role="status">
+        <Alert tone="info" className="mt-4">
           Đã đặt lại mật khẩu. Mọi thiết bị đã được đăng xuất, hãy đăng nhập bằng mật khẩu mới.
-        </div>
+        </Alert>
       ) : (
-        <form className="form-stack section-gap" onSubmit={onSubmit}>
-          <label>
-            Mật khẩu mới (8-100 ký tự, có chữ và số)
-            <input
-              autoComplete="new-password"
-              minLength={8}
-              required
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-            />
-          </label>
-          <label>
-            Nhập lại mật khẩu mới
-            <input
-              autoComplete="new-password"
-              required
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-            />
-          </label>
-          {error && <div className="error-box">{error}</div>}
-          <button className="primary-button" type="submit" disabled={isSaving}>
+        <form className="mt-4 flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+          {error && <Alert>{error}</Alert>}
+          <Field label="Mật khẩu mới" hint="8-100 ký tự, có chữ và số" error={formState.errors.newPassword?.message}>
+            <Input type="password" autoComplete="new-password" {...register('newPassword')} />
+          </Field>
+          <Field label="Nhập lại mật khẩu mới" error={formState.errors.confirmPassword?.message}>
+            <Input type="password" autoComplete="new-password" {...register('confirmPassword')} />
+          </Field>
+          <Button type="submit" size="lg" loading={formState.isSubmitting}>
             Đặt mật khẩu mới
-          </button>
+          </Button>
         </form>
       )}
-      <Link className="text-action section-gap" to={isDone ? '/login' : '/forgot-password'}>
-        {isDone ? 'Đến trang đăng nhập' : 'Yêu cầu liên kết mới'}
-      </Link>
+      <p className="mt-6 text-center text-sm">
+        <Link className="font-semibold text-brand-700 hover:underline" to={isDone ? '/login' : '/forgot-password'}>
+          {isDone ? 'Đến trang đăng nhập' : 'Yêu cầu liên kết mới'}
+        </Link>
+      </p>
     </>
   );
 };

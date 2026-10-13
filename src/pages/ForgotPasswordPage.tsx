@@ -1,59 +1,57 @@
-import { useState, type FormEvent } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Alert, Button, Field, Input } from '../components/ui';
 import { authService } from '../services/authService';
-import { toApiError } from '../utils/apiError';
+import { applyApiErrors, emailSchema } from '../utils/forms';
+
+const schema = z.object({ email: emailSchema });
 
 export const ForgotPasswordPage = () => {
-  const [email, setEmail] = useState('');
   const [isSent, setIsSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSending, setIsSending] = useState(false);
+  const { register, handleSubmit, setError: setFieldError, formState } = useForm<z.infer<typeof schema>>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: '' },
+  });
 
-  const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const onSubmit = handleSubmit(async ({ email }) => {
     setError(null);
-    setIsSending(true);
     try {
-      await authService.forgotPassword(email.trim());
+      await authService.forgotPassword(email);
       setIsSent(true);
     } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không gửi được yêu cầu');
-    } finally {
-      setIsSending(false);
+      setError(applyApiErrors(caught, setFieldError, 'Không gửi được yêu cầu'));
     }
-  };
+  });
 
   return (
     <>
-      <p className="page-eyebrow">DOTANI Thượng Cát</p>
-      <h1 className="page-title">Quên mật khẩu</h1>
+      <h1 className="text-xl font-bold text-slate-900">Quên mật khẩu</h1>
       {isSent ? (
-        <div className="success-box section-gap" role="status">
-          Nếu email này đã đăng ký, bạn sẽ nhận được liên kết đặt lại mật khẩu trong vài phút. Liên kết có hiệu lực 30
-          phút và chỉ dùng được một lần.
-        </div>
+        <Alert tone="info" className="mt-4">
+          Nếu email này đã đăng ký, bạn sẽ nhận được liên kết đặt lại mật khẩu trong vài phút. Liên kết có hiệu lực 30 phút và chỉ dùng
+          được một lần.
+        </Alert>
       ) : (
-        <form className="form-stack section-gap" onSubmit={onSubmit}>
-          <p className="page-description">Nhập email đăng ký tài khoản, chúng tôi sẽ gửi liên kết đặt lại mật khẩu.</p>
-          <label>
-            Email
-            <input
-              autoComplete="email"
-              required
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
-          {error && <div className="error-box">{error}</div>}
-          <button className="primary-button" type="submit" disabled={isSending}>
+        <form className="mt-4 flex flex-col gap-4" onSubmit={onSubmit} noValidate>
+          <p className="text-sm text-slate-600">Nhập email đăng ký tài khoản, chúng tôi sẽ gửi liên kết đặt lại mật khẩu.</p>
+          {error && <Alert>{error}</Alert>}
+          <Field label="Email" error={formState.errors.email?.message}>
+            <Input type="email" autoComplete="email" inputMode="email" {...register('email')} />
+          </Field>
+          <Button type="submit" size="lg" loading={formState.isSubmitting}>
             Gửi liên kết
-          </button>
+          </Button>
         </form>
       )}
-      <Link className="text-action section-gap" to="/login">
-        Quay lại đăng nhập
-      </Link>
+      <p className="mt-6 text-center text-sm">
+        <Link className="font-semibold text-brand-700 hover:underline" to="/login">
+          Quay lại đăng nhập
+        </Link>
+      </p>
     </>
   );
 };

@@ -16,6 +16,8 @@ export type Event = {
   organizationId: string;
   organizationName?: string | null;
   maxParticipants?: number | null;
+  /** members registered GOING */
+  goingCount?: number;
   status: EventStatus;
   createdBy?: string | null;
   attachments?: EventAttachment[];
@@ -50,7 +52,12 @@ export type EventFilters = {
   organization?: string;
   status?: EventStatus | '';
   date?: string;
-  upcoming?: boolean;
+  when?: 'UPCOMING' | 'PAST';
+  /** ISO instants bounding startTime, for the calendar */
+  from?: string;
+  to?: string;
+  /** only events I registered GOING for */
+  participating?: boolean;
   page: number;
   size: number;
   sort?: string;

@@ -1,20 +1,32 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { eventService } from '../services/eventService';
 import type { EventFilters, EventFormValues, ParticipationStatus } from '../types/event';
 
 export const eventKeys = {
   all: ['events'] as const,
   list: (filters: EventFilters) => [...eventKeys.all, 'list', filters] as const,
+  infinite: (filters: Omit<EventFilters, 'page'>) => [...eventKeys.all, 'infinite', filters] as const,
   detail: (id: string) => [...eventKeys.all, 'detail', id] as const,
   summary: (id: string) => [...eventKeys.all, 'detail', id, 'summary'] as const,
   participants: (id: string) => [...eventKeys.all, 'detail', id, 'participants'] as const,
   mine: () => [...eventKeys.all, 'mine'] as const,
 };
 
-export const useEvents = (filters: EventFilters) =>
+/** Paged list for infinite scrolling; filters without page. */
+export const useInfiniteEvents = (filters: Omit<EventFilters, 'page'>, enabled = true) =>
+  useInfiniteQuery({
+    queryKey: eventKeys.infinite(filters),
+    queryFn: ({ pageParam }) => eventService.list({ ...filters, page: pageParam }),
+    initialPageParam: 0,
+    getNextPageParam: (last) => (last.number + 1 < last.totalPages ? last.number + 1 : undefined),
+    enabled,
+  });
+
+export const useEvents = (filters: EventFilters, enabled = true) =>
   useQuery({
     queryKey: eventKeys.list(filters),
     queryFn: () => eventService.list(filters),
+    enabled,
   });
 
 export const useEvent = (id: string) =>
@@ -92,10 +104,11 @@ export const useParticipants = (eventId: string, enabled: boolean) =>
     enabled: Boolean(eventId) && enabled,
   });
 
-export const useMyEventParticipations = () =>
+export const useMyEventParticipations = (enabled = true) =>
   useQuery({
     queryKey: eventKeys.mine(),
     queryFn: eventService.myEvents,
+    enabled,
   });
 
 export const useUpdateParticipation = (eventId: string) => {
@@ -107,6 +120,9 @@ export const useUpdateParticipation = (eventId: string) => {
       queryClient.invalidateQueries({ queryKey: eventKeys.summary(eventId) });
       queryClient.invalidateQueries({ queryKey: eventKeys.participants(eventId) });
       queryClient.invalidateQueries({ queryKey: eventKeys.mine() });
+      // goingCount on cards and details
+      queryClient.invalidateQueries({ queryKey: eventKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['feed'] });
     },
   });
 };

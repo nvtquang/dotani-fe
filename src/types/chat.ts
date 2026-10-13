@@ -11,6 +11,8 @@ export type Conversation = {
   lastMessageAt?: string | null;
   lastMessagePreview?: string | null;
   unreadCount?: number;
+  /** memberId -> when that member last read the conversation (null = never) */
+  readStates?: Record<string, string | null>;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -33,4 +35,14 @@ export type Message = {
   attachmentSize?: number | null;
   attachmentKind?: 'IMAGE' | 'FILE' | null;
   createdAt: string;
+};
+
+export type ChatTypingEvent = {
+  memberId: string;
+  memberName?: string | null;
+};
+
+export type ChatReadEvent = {
+  memberId: string;
+  lastReadAt: string | null;
 };

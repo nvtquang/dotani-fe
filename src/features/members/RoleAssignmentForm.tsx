@@ -1,22 +1,10 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { useState } from 'react';
+import { Field, Select, useConfirm } from '../../components/ui';
 import type { Member, MemberFormValues, MemberRole } from '../../types/member';
 import type { OrganizationUnit } from '../../types/organization';
 import { roleLabel } from '../../utils/labels';
 
-type RoleAssignmentFormProps = {
-  member: Member;
-  organizations: OrganizationUnit[];
-  isSubmitting?: boolean;
-  onSubmit: (role: MemberRole, organizationId: string) => void;
-  onCancel: () => void;
-};
-
-const assignableRoles: MemberRole[] = [
-  'MEMBER',
-  'TDP_SECRETARY',
-  'TDP_DEPUTY_SECRETARY',
-  'WARD_DEPUTY_SECRETARY',
-];
+const assignableRoles: MemberRole[] = ['MEMBER', 'TDP_SECRETARY', 'TDP_DEPUTY_SECRETARY', 'WARD_DEPUTY_SECRETARY'];
 
 const requiresTdp = (role: MemberRole) => role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY';
 
@@ -34,77 +22,56 @@ export const toMemberFormValues = (member: Member, organizationId = member.organ
   organizationId,
 });
 
-export const RoleAssignmentForm = ({
-  member,
-  organizations,
-  isSubmitting,
-  onSubmit,
-  onCancel,
-}: RoleAssignmentFormProps) => {
-  const branchOrganizations = useMemo(
-    () => organizations.filter((organization) => organization.type === 'YOUTH_UNION_BRANCH'),
-    [organizations],
-  );
-  const [selectedRole, setSelectedRole] = useState<MemberRole>(
-    assignableRoles.includes(member.memberRole) ? member.memberRole : 'MEMBER',
-  );
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState(
-    member.organizationId || branchOrganizations[0]?.id || '',
-  );
+type RoleAssignmentFormProps = {
+  formId: string;
+  member: Member;
+  organizations: OrganizationUnit[];
+  onSubmit: (role: MemberRole, organizationId: string) => void;
+};
 
-  const handleSubmit = (event: FormEvent) => {
-    event.preventDefault();
-
-    const nextOrganizationId = requiresTdp(selectedRole) ? selectedOrganizationId : member.organizationId;
-    const confirmed = window.confirm(
-      `Xác nhận phân quyền ${member.fullName} thành ${roleLabel[selectedRole]}?`,
-    );
-
-    if (confirmed) {
-      onSubmit(selectedRole, nextOrganizationId);
-    }
-  };
+export const RoleAssignmentForm = ({ formId, member, organizations, onSubmit }: RoleAssignmentFormProps) => {
+  const confirm = useConfirm();
+  const branches = organizations.filter((organization) => organization.type === 'YOUTH_UNION_BRANCH');
+  const [role, setRole] = useState<MemberRole>(assignableRoles.includes(member.memberRole) ? member.memberRole : 'MEMBER');
+  const [organizationId, setOrganizationId] = useState(member.organizationId || branches[0]?.id || '');
 
   return (
-    <form className="member-form" onSubmit={handleSubmit}>
-      <label>
-        Vai trò mới
-        <select value={selectedRole} onChange={(event) => setSelectedRole(event.target.value as MemberRole)}>
-          {assignableRoles.map((role) => (
-            <option key={role} value={role}>
-              {roleLabel[role]}
+    <form
+      id={formId}
+      className="grid gap-4"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        const ok = await confirm({
+          title: 'Xác nhận phân quyền',
+          description: `${member.fullName} sẽ trở thành ${roleLabel[role]}${requiresTdp(role) ? ` của ${branches.find((item) => item.id === organizationId)?.name ?? 'TDP đã chọn'}` : ''}.`,
+          confirmLabel: 'Phân quyền',
+        });
+        if (ok) onSubmit(role, requiresTdp(role) ? organizationId : member.organizationId);
+      }}
+    >
+      <p className="text-sm text-slate-700">
+        Vai trò hiện tại: <strong>{roleLabel[member.memberRole]}</strong>
+      </p>
+      <Field label="Vai trò mới">
+        <Select value={role} onChange={(event) => setRole(event.target.value as MemberRole)}>
+          {assignableRoles.map((item) => (
+            <option key={item} value={item}>
+              {roleLabel[item]}
             </option>
           ))}
-        </select>
-      </label>
-
-      {requiresTdp(selectedRole) && (
-        <label>
-          Tổ dân phố
-          <select
-            required
-            value={selectedOrganizationId}
-            onChange={(event) => setSelectedOrganizationId(event.target.value)}
-          >
-            {branchOrganizations.map((organization) => (
+        </Select>
+      </Field>
+      {requiresTdp(role) && (
+        <Field label="Tổ dân phố" required>
+          <Select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)}>
+            {branches.map((organization) => (
               <option key={organization.id} value={organization.id}>
                 {organization.name}
               </option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </Field>
       )}
-
-      
-
-      <div className="form-actions form-wide">
-        <button className="secondary-button inline-button" type="button" onClick={onCancel}>
-          Hủy
-        </button>
-        <button className="primary-button inline-button" type="submit" disabled={isSubmitting}>
-          Xác nhận phân quyền
-        </button>
-      </div>
     </form>
   );
 };

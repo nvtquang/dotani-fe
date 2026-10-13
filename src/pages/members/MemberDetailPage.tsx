@@ -1,221 +1,193 @@
-import { useMemo, useState } from 'react';
-import { Link, Navigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Pencil, ShieldCheck } from 'lucide-react';
+import { useId, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, MessageSquare, Pencil, ShieldCheck, UserX } from 'lucide-react';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
-import { Card, LoadingSkeleton, PageHeader, StatusBadge, UserAvatar } from '../../components/ui';
+import { Alert, Button, ButtonLink, Card, DetailList, Dialog, LoadingSkeleton, StatusBadge, UserAvatar, useConfirm, useToast } from '../../components/ui';
 import { BankingSection } from '../../features/banking/BankingSection';
 import { MemberForm } from '../../features/members/MemberForm';
 import { RoleAssignmentForm, toMemberFormValues } from '../../features/members/RoleAssignmentForm';
-import { useMember, useMemberBanking, useUpdateMember, useUpdateMemberRole } from '../../hooks/useMembers';
+import { useDisableMember, useMember, useMemberBanking, useUpdateMember, useUpdateMemberRole } from '../../hooks/useMembers';
 import { useOrganizations } from '../../hooks/useOrganizations';
+import { isTdpRole } from '../../routes/navigation';
 import { useAuth } from '../../stores/AuthContext';
-import type { ApiError } from '../../types/api';
 import type { MemberFormValues, MemberRole } from '../../types/member';
-import { resolveAssetUrl } from '../../utils/assetUrl';
-import { genderLabel, memberStatusLabel, roleLabel } from '../../utils/labels';
 import { toApiError } from '../../utils/apiError';
-
-const isTdpOfficer = (role: string | null) => role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY';
+import { resolveAssetUrl } from '../../utils/assetUrl';
+import { formatDate } from '../../utils/dateTime';
+import { genderLabel, memberStatusLabel, roleLabel } from '../../utils/labels';
 
 export const MemberDetailPage = () => {
   const { id = '' } = useParams();
+  const toast = useToast();
+  const confirm = useConfirm();
+  const editFormId = useId();
+  const roleFormId = useId();
   const [searchParams, setSearchParams] = useSearchParams();
   const { role, user } = useAuth();
-  const mode = searchParams.get('mode');
-  const isEditing = mode === 'edit';
-  const isAssigningRole = mode === 'role';
   const canAssignRole = role === 'WARD_SECRETARY';
-  const [formError, setFormError] = useState<ApiError | null>(null);
+  const mode = searchParams.get('mode');
+  const closeMode = () => setSearchParams({}, { replace: true });
+  const [formError, setFormError] = useState<string | null>(null);
 
   const memberQuery = useMember(id);
   const organizationsQuery = useOrganizations();
-  const organizations = useMemo(
-    () => (organizationsQuery.data ?? []).filter((organization) => organization.type === 'YOUTH_UNION_BRANCH'),
-    [organizationsQuery.data],
+  const fixedOrganizationId = isTdpRole(role) ? user?.tdpId : undefined;
+  const branches = (organizationsQuery.data ?? []).filter(
+    (organization) => organization.type === 'YOUTH_UNION_BRANCH' && (!fixedOrganizationId || organization.id === fixedOrganizationId),
   );
   const updateMember = useUpdateMember(id);
   const updateMemberRole = useUpdateMemberRole(id);
+  const disableMember = useDisableMember();
   const bankingQuery = useMemberBanking(id);
-  const fixedOrganizationId = isTdpOfficer(role) ? user?.tdpId : undefined;
 
   const handleUpdate = async (values: MemberFormValues) => {
-    setFormError(null);
-    try {
-      await updateMember.mutateAsync({
-        ...values,
-        organizationId: fixedOrganizationId ?? values.organizationId,
-      });
-      setSearchParams({});
-    } catch (error) {
-      setFormError(toApiError(error));
-    }
+    await updateMember.mutateAsync(values);
+    toast.success('Đã lưu hồ sơ');
+    closeMode();
   };
 
-  const handleRoleUpdate = async (nextRole: MemberRole, nextOrganizationId: string) => {
-    if (!memberQuery.data) {
-      return;
-    }
-
-    setFormError(null);
+  const handleRole = async (nextRole: MemberRole, nextOrganizationId: string) => {
+    const member = memberQuery.data;
+    if (!member) return;
     try {
-      let currentMember = memberQuery.data;
-
-      if (nextOrganizationId && nextOrganizationId !== currentMember.organizationId) {
-        currentMember = await updateMember.mutateAsync(toMemberFormValues(currentMember, nextOrganizationId));
+      if (nextOrganizationId && nextOrganizationId !== member.organizationId) {
+        await updateMember.mutateAsync(toMemberFormValues(member, nextOrganizationId));
       }
-
       await updateMemberRole.mutateAsync(nextRole);
       await memberQuery.refetch();
-      setSearchParams({});
-    } catch (error) {
-      setFormError(toApiError(error));
+      toast.success(`Đã phân quyền ${roleLabel[nextRole]}`);
+      closeMode();
+    } catch (caught) {
+      setFormError(toApiError(caught).message ?? 'Không phân quyền được');
     }
   };
 
-  if (isAssigningRole && !canAssignRole) {
-    return <Navigate to={`/members/${id}`} replace />;
-  }
+  const handleDisable = async () => {
+    if (!(await confirm({ title: 'Vô hiệu hóa đoàn viên này?', description: 'Tài khoản sẽ không đăng nhập được nữa.', confirmLabel: 'Vô hiệu hóa', tone: 'danger' }))) return;
+    disableMember.mutate(id, {
+      onSuccess: () => {
+        toast.success('Đã vô hiệu hóa đoàn viên');
+        void memberQuery.refetch();
+      },
+      onError: (caught) => toast.error(toApiError(caught).message ?? 'Không vô hiệu hóa được'),
+    });
+  };
 
   if (memberQuery.error && toApiError(memberQuery.error).status === 403) {
     return <ForbiddenMessage />;
   }
-
   if (memberQuery.isLoading) {
     return (
-      <Card>
-        <LoadingSkeleton rows={5} />
+      <Card className="p-5">
+        <LoadingSkeleton rows={6} />
       </Card>
     );
   }
-
   if (!memberQuery.data) {
-    return <section className="error-box">Không tìm thấy đoàn viên.</section>;
+    return <Alert>Không tìm thấy đoàn viên.</Alert>;
   }
 
   const member = memberQuery.data;
-  const avatarUrl = resolveAssetUrl(member.avatarUrl);
 
   return (
-    <div className="page-stack">
-      <PageHeader
-        eyebrow="Hồ sơ đoàn viên"
-        title={member.fullName}
-        description="Phân quyền được xử lý bằng chức năng riêng, không nằm trong form hồ sơ."
-        actions={
-          <>
-            <Link className="secondary-button inline-button" to="/members">
-              <ArrowLeft size={17} aria-hidden="true" />
-              Quay lại
-            </Link>
-            <button
-              className="primary-button inline-button"
-              type="button"
-              onClick={() => setSearchParams(isEditing ? {} : { mode: 'edit' })}
-            >
-              <Pencil size={17} aria-hidden="true" />
-              {isEditing ? 'Xem chi tiết' : 'Sửa hồ sơ'}
-            </button>
+    <div className="mx-auto flex max-w-3xl flex-col gap-4">
+      <Link to="/members" className="inline-flex h-10 items-center gap-1.5 self-start text-sm font-medium text-slate-700 hover:text-slate-900">
+        <ArrowLeft size={17} aria-hidden="true" />
+        Đoàn viên
+      </Link>
+
+      <Card className="flex flex-col items-center gap-4 p-5 text-center sm:flex-row sm:items-start sm:text-left">
+        <UserAvatar name={member.fullName} src={resolveAssetUrl(member.avatarUrl)} size="lg" />
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-bold text-slate-900">{member.fullName}</h1>
+          <p className="text-sm text-slate-600">{member.organizationName || 'Chưa có TDP'}</p>
+          <div className="mt-2 flex flex-wrap justify-center gap-1.5 sm:justify-start">
+            <StatusBadge value={member.memberStatus} label={memberStatusLabel[member.memberStatus]} />
+            <StatusBadge value="ROLE" label={roleLabel[member.memberRole]} />
+          </div>
+          <div className="mt-4 flex flex-wrap justify-center gap-2 sm:justify-start">
+            <Button variant="secondary" size="sm" onClick={() => setSearchParams({ mode: 'edit' })}>
+              <Pencil size={16} aria-hidden="true" />
+              Sửa hồ sơ
+            </Button>
             {canAssignRole && (
-              <button
-                className="primary-button inline-button"
-                type="button"
-                onClick={() => setSearchParams(isAssigningRole ? {} : { mode: 'role' })}
-              >
-                <ShieldCheck size={17} aria-hidden="true" />
-                {isAssigningRole ? 'Đóng phân quyền' : 'Phân quyền'}
-              </button>
+              <Button variant="secondary" size="sm" onClick={() => setSearchParams({ mode: 'role' })}>
+                <ShieldCheck size={16} aria-hidden="true" />
+                Phân quyền
+              </Button>
             )}
+            {member.id !== user?.memberId && (
+              <ButtonLink to={`/chat?with=${member.id}`} variant="secondary" size="sm">
+                <MessageSquare size={16} aria-hidden="true" />
+                Nhắn tin
+              </ButtonLink>
+            )}
+            {member.memberStatus !== 'INACTIVE' && member.id !== user?.memberId && (
+              <Button variant="danger" size="sm" onClick={handleDisable} loading={disableMember.isPending}>
+                <UserX size={16} aria-hidden="true" />
+                Vô hiệu hóa
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      <Card className="p-4 sm:p-6">
+        <h2 className="mb-3 text-base font-semibold text-slate-900">Thông tin cá nhân</h2>
+        <DetailList
+          items={[
+            { label: 'Email', value: member.email },
+            { label: 'Số điện thoại', value: member.phone },
+            { label: 'Ngày sinh', value: member.dateOfBirth ? formatDate(member.dateOfBirth) : null },
+            { label: 'Giới tính', value: member.gender ? genderLabel[member.gender] : null },
+            { label: 'Ngày vào Đoàn', value: member.youthUnionJoinDate ? formatDate(member.youthUnionJoinDate) : null },
+            { label: 'Địa chỉ', value: member.address },
+          ]}
+        />
+      </Card>
+
+      <BankingSection banking={bankingQuery.data} isLoading={bankingQuery.isLoading} errorMessage={bankingQuery.error ? toApiError(bankingQuery.error).message : null} />
+
+      <Dialog
+        open={mode === 'edit'}
+        onClose={closeMode}
+        title="Sửa hồ sơ đoàn viên"
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={closeMode}>
+              Hủy
+            </Button>
+            <Button type="submit" form={editFormId} loading={updateMember.isPending}>
+              Lưu
+            </Button>
           </>
         }
-      />
+      >
+        {formError && <Alert className="mb-4">{formError}</Alert>}
+        <MemberForm formId={editFormId} initialValue={member} organizations={branches} fixedOrganizationId={fixedOrganizationId} onSubmit={handleUpdate} onError={setFormError} />
+      </Dialog>
 
-      {formError?.status === 403 && <ForbiddenMessage />}
-      {formError && formError.status !== 403 && <section className="error-box">{formError.message}</section>}
-
-      {isEditing && (
-        <Card>
-          <div className="section-heading">
-            <h2>Sửa đoàn viên</h2>
-          </div>
-          <MemberForm
-            initialValue={member}
-            organizations={organizations}
-            fixedOrganizationId={fixedOrganizationId}
-            isSubmitting={updateMember.isPending}
-            submitLabel="Lưu thay đổi"
-            onSubmit={handleUpdate}
-            onCancel={() => setSearchParams({})}
-          />
-        </Card>
-      )}
-
-      {isAssigningRole && canAssignRole && (
-        <Card>
-          <div className="section-heading">
-            <h2>Phân quyền</h2>
-          </div>
-          <RoleAssignmentForm
-            member={member}
-            organizations={organizations}
-            isSubmitting={updateMember.isPending || updateMemberRole.isPending}
-            onSubmit={handleRoleUpdate}
-            onCancel={() => setSearchParams({})}
-          />
-        </Card>
-      )}
-
-      {!isEditing && !isAssigningRole && (
-        <>
-          <Card className="profile-card">
-            <UserAvatar name={member.fullName} src={avatarUrl} size="lg" />
-            <div>
-              <p className="page-eyebrow">Thông tin hồ sơ</p>
-              <h2>{member.fullName}</h2>
-              <p className="page-description">{member.organizationName || 'Chưa có TDP'}</p>
-              <div className="form-actions section-gap">
-                <StatusBadge value={member.memberStatus} label={memberStatusLabel[member.memberStatus]} />
-                <StatusBadge value={member.memberRole} label={roleLabel[member.memberRole] ?? member.memberRole} />
-              </div>
-            </div>
-          </Card>
-
-          <Card className="detail-grid">
-            <div>
-              <span>Email</span>
-              <strong>{member.email || '-'}</strong>
-            </div>
-            <div>
-              <span>Số điện thoại</span>
-              <strong>{member.phone || '-'}</strong>
-            </div>
-            <div>
-              <span>Ngày sinh</span>
-              <strong>{member.dateOfBirth || '-'}</strong>
-            </div>
-            <div>
-              <span>Giới tính</span>
-              <strong>{member.gender ? genderLabel[member.gender] : '-'}</strong>
-            </div>
-            <div>
-              <span>Tổ dân phố</span>
-              <strong>{member.organizationName || 'Chưa có TDP'}</strong>
-            </div>
-            <div>
-              <span>Ngày vào Đoàn</span>
-              <strong>{member.youthUnionJoinDate || '-'}</strong>
-            </div>
-            <div className="detail-wide">
-              <span>Địa chỉ</span>
-              <strong>{member.address || '-'}</strong>
-            </div>
-          </Card>
-
-          <BankingSection
-            banking={bankingQuery.data}
-            errorMessage={bankingQuery.error ? toApiError(bankingQuery.error).message : null}
-            isLoading={bankingQuery.isLoading}
-          />
-        </>
+      {canAssignRole && (
+        <Dialog
+          open={mode === 'role'}
+          onClose={closeMode}
+          title="Phân quyền"
+          size="sm"
+          footer={
+            <>
+              <Button variant="secondary" onClick={closeMode}>
+                Hủy
+              </Button>
+              <Button type="submit" form={roleFormId} loading={updateMember.isPending || updateMemberRole.isPending}>
+                Tiếp tục
+              </Button>
+            </>
+          }
+        >
+          {formError && <Alert className="mb-4">{formError}</Alert>}
+          <RoleAssignmentForm formId={roleFormId} member={member} organizations={organizationsQuery.data ?? []} onSubmit={handleRole} />
+        </Dialog>
       )}
     </div>
   );

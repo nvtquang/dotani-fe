@@ -1,875 +1,216 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ImageIcon, LogOut, MessageCircle, Paperclip, Plus, Search, Send, UsersRound, Wifi, WifiOff, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Info, MessageCircle } from 'lucide-react';
+import { useChatConnected } from '../api/chatSocket';
+import { Button, EmptyState, LoadingSkeleton, UserAvatar, cn, useToast } from '../components/ui';
+import { conversationTitle, otherMemberId } from '../features/chat/chatUtils';
+import { ConversationList } from '../features/chat/ConversationList';
+import { GroupInfoDialog } from '../features/chat/GroupInfoDialog';
+import { MessageComposer } from '../features/chat/MessageComposer';
+import { MessageList } from '../features/chat/MessageList';
+import { NewConversationDialog } from '../features/chat/NewConversationDialog';
+import { MemberProfileDialog } from '../features/members/MemberProfileDialog';
 import {
-  useAddConversationMember,
-  useChatOverviewSocket,
-  useChatSocket,
+  useConversationRealtime,
   useConversations,
   useCreateConversation,
-  useMarkConversationRead,
   useMessages,
-  useRemoveConversationMember,
-  useUpdateGroupAvatar,
+  useTypingIndicator,
   useUploadChatAttachment,
 } from '../hooks/useChat';
-import { useMember, useMemberDirectory, useMemberMap } from '../hooks/useMembers';
+import { useMemberMap } from '../hooks/useMembers';
 import { useAuth } from '../stores/AuthContext';
-import type { Conversation, ConversationType, Message } from '../types/chat';
-import type { MemberDirectoryItem } from '../types/member';
-import { Badge, EmptyState, LoadingSkeleton, UserAvatar } from '../components/ui';
-import { formatDateTime } from '../utils/dateTime';
 import { toApiError } from '../utils/apiError';
 import { resolveAssetUrl } from '../utils/assetUrl';
-import { genderLabel, memberStatusLabel, roleLabel } from '../utils/labels';
 
-const historyPageSize = 30;
-
-const memberDisplayName = (
-  conversation: Conversation | null,
-  memberId?: string | null,
-  currentMemberId?: string | null,
-) => {
-  if (!memberId) {
-    return 'Thành viên';
-  }
-  if (memberId === currentMemberId) {
-    return 'Bạn';
-  }
-  return conversation?.memberNames?.[memberId] ?? 'Thành viên';
-};
-
-const conversationTitle = (conversation: Conversation, currentMemberId?: string | null) => {
-  if (conversation.title) {
-    return conversation.title;
-  }
-
-  if (conversation.type === 'DIRECT') {
-    const otherMember = conversation.memberIds.find((memberId) => memberId !== currentMemberId);
-    return otherMember ? memberDisplayName(conversation, otherMember, currentMemberId) : 'Chat trực tiếp';
-  }
-
-  const namedMembers = conversation.memberIds
-    .filter((memberId) => memberId !== currentMemberId)
-    .map((memberId) => memberDisplayName(conversation, memberId, currentMemberId))
-    .filter((name) => name !== 'Thành viên')
-    .slice(0, 3);
-
-  return namedMembers.length ? namedMembers.join(', ') : 'Nhóm chat';
-};
-
-type MemberPickerProps = {
-  label: string;
-  selectedMembers: MemberDirectoryItem[];
-  onSelect: (member: MemberDirectoryItem) => void;
-  onRemove: (memberId: string) => void;
-  excludeIds?: string[];
-  multiple?: boolean;
-};
-
-const MemberPicker = ({
-  label,
-  selectedMembers,
-  onSelect,
-  onRemove,
-  excludeIds = [],
-  multiple = true,
-}: MemberPickerProps) => {
-  const [keyword, setKeyword] = useState('');
-  const directoryQuery = useMemberDirectory(keyword);
-  const blockedIds = new Set([...excludeIds, ...selectedMembers.map((member) => member.id)]);
-  const options = (directoryQuery.data?.content ?? []).filter((member) => !blockedIds.has(member.id));
-
-  const choose = (member: MemberDirectoryItem) => {
-    onSelect(member);
-    setKeyword('');
-  };
-
-  return (
-    <div className="member-picker">
-      <label>
-        <span>{label}</span>
-        <span className="member-search-box">
-          <Search size={16} aria-hidden="true" />
-          <input
-            placeholder="Tìm theo tên, số điện thoại hoặc email"
-            value={keyword}
-            onChange={(event) => setKeyword(event.target.value)}
-          />
-        </span>
-      </label>
-
-      {selectedMembers.length > 0 && (
-        <div className="selected-member-list">
-          {selectedMembers.map((member) => (
-            <span className="selected-member-chip" key={member.id}>
-              <UserAvatar name={member.fullName} src={resolveAssetUrl(member.avatarUrl)} size="sm" />
-              <span>
-                <strong>{member.fullName}</strong>
-                <small>{member.organizationName ?? 'Chưa có TDP'}</small>
-              </span>
-              <button type="button" onClick={() => onRemove(member.id)} aria-label={`Bỏ chọn ${member.fullName}`}>
-                <X size={14} aria-hidden="true" />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-
-      {keyword.trim().length > 0 && keyword.trim().length < 2 && (
-        <p className="form-hint">Nhập ít nhất 2 ký tự để tìm thành viên.</p>
-      )}
-
-      {keyword.trim().length >= 2 && (
-        <div className="member-search-results">
-          {directoryQuery.isLoading && <LoadingSkeleton rows={2} />}
-          {!directoryQuery.isLoading &&
-            options.map((member) => (
-              <button key={member.id} type="button" onClick={() => choose(member)}>
-                <UserAvatar name={member.fullName} src={resolveAssetUrl(member.avatarUrl)} size="sm" />
-                <span>
-                  <strong>{member.fullName}</strong>
-                  <small>{member.organizationName ?? 'Chưa có TDP'}</small>
-                </span>
-              </button>
-            ))}
-          {!directoryQuery.isLoading && options.length === 0 && (
-            <p className="form-hint">Không tìm thấy thành viên phù hợp.</p>
-          )}
-        </div>
-      )}
-
-      {!multiple && selectedMembers.length >= 1 && <p className="form-hint">Chat trực tiếp chỉ chọn một thành viên.</p>}
-    </div>
-  );
-};
-
+/**
+ * Two panes on wide screens; on phones either the list or the open conversation.
+ * The open conversation lives in the URL (?c=id) so back/forward and links work;
+ * ?with=memberId opens (or starts) a direct chat with that member.
+ */
 export const ChatPage = () => {
   const { user } = useAuth();
+  const me = user?.memberId;
+  const toast = useToast();
+  const connected = useChatConnected();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = searchParams.get('c');
+  const withMember = searchParams.get('with');
+  const [newOpen, setNewOpen] = useState(false);
+  const [groupOpen, setGroupOpen] = useState(false);
+  const [profileId, setProfileId] = useState<string | null>(null);
+
   const conversationsQuery = useConversations();
+  const conversations = useMemo(() => conversationsQuery.data ?? [], [conversationsQuery.data]);
+  const selected = conversations.find((conversation) => conversation.id === selectedId) ?? null;
+  const messagesQuery = useMessages(selected?.id ?? null);
+  const { send } = useConversationRealtime(selected?.id ?? null);
+  const { typingNames, notifyTyping } = useTypingIndicator(selected?.id ?? null);
+  const upload = useUploadChatAttachment(selected?.id ?? '');
   const createConversation = useCreateConversation();
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  const [historyPage, setHistoryPage] = useState(0);
-  const [liveMessages, setLiveMessages] = useState<Message[]>([]);
-  const [draft, setDraft] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [conversationType, setConversationType] = useState<ConversationType>('DIRECT');
-  const [conversationTitleInput, setConversationTitleInput] = useState('');
-  const [selectedMembers, setSelectedMembers] = useState<MemberDirectoryItem[]>([]);
-  const [memberToAdd, setMemberToAdd] = useState<MemberDirectoryItem[]>([]);
-  const [profileMemberId, setProfileMemberId] = useState<string | null>(null);
-  const [isGroupDetailsOpen, setIsGroupDetailsOpen] = useState(false);
-  const [lastActivityByConversation, setLastActivityByConversation] = useState<Record<string, string>>({});
-  const messageHistoryRef = useRef<HTMLDivElement | null>(null);
 
-  const selectedConversation = useMemo(
-    () => conversationsQuery.data?.find((conversation) => conversation.id === selectedConversationId) ?? null,
-    [conversationsQuery.data, selectedConversationId],
+  const messages = useMemo(
+    () => [...(messagesQuery.data?.pages ?? [])].reverse().flatMap((page) => [...page.content].reverse()),
+    [messagesQuery.data],
   );
-  const conversationIds = useMemo(
-    () => (conversationsQuery.data ?? []).map((conversation) => conversation.id),
-    [conversationsQuery.data],
-  );
-  const overviewConversationIds = useMemo(
-    () => conversationIds.filter((conversationId) => conversationId !== selectedConversationId),
-    [conversationIds, selectedConversationId],
-  );
-  const sortedConversations = useMemo(() => {
-    const activityTime = (conversation: Conversation) =>
-      new Date(
-        lastActivityByConversation[conversation.id] ??
-          conversation.lastMessageAt ??
-          conversation.updatedAt ??
-          conversation.createdAt ??
-          '1970-01-01T00:00:00',
-      ).getTime();
-
-    return [...(conversationsQuery.data ?? [])].sort((left, right) => activityTime(right) - activityTime(left));
-  }, [conversationsQuery.data, lastActivityByConversation]);
-  const messagesQuery = useMessages(selectedConversationId, historyPage, historyPageSize);
-  const visibleMemberIds = useMemo(() => {
+  const memberIds = useMemo(() => {
     const ids = new Set<string>();
-    (conversationsQuery.data ?? []).forEach((conversation) => conversation.memberIds.forEach((memberId) => ids.add(memberId)));
-    liveMessages.forEach((message) => ids.add(message.senderId));
-    (messagesQuery.data?.content ?? []).forEach((message) => ids.add(message.senderId));
+    conversations.forEach((conversation) => conversation.memberIds.forEach((id) => ids.add(id)));
     return Array.from(ids);
-  }, [conversationsQuery.data, liveMessages, messagesQuery.data?.content]);
-  const memberMap = useMemberMap(visibleMemberIds);
-  // Full profiles (email, phone, ...) are only readable within the viewer's scope; others get the public card.
-  const canViewFullProfile = (memberId: string) => {
-    if (memberId === user?.memberId) return true;
-    if (user?.role === 'WARD_SECRETARY' || user?.role === 'WARD_DEPUTY_SECRETARY') return true;
-    if (user?.role === 'TDP_SECRETARY' || user?.role === 'TDP_DEPUTY_SECRETARY') {
-      return Boolean(user.tdpId) && memberMap[memberId]?.organizationId === user.tdpId;
-    }
-    return false;
-  };
-  const selectedProfileQuery = useMember(
-    profileMemberId && canViewFullProfile(profileMemberId) ? profileMemberId : '',
-  );
-  const selectedProfile = selectedProfileQuery.data;
-  const selectedProfileBasic = profileMemberId ? memberMap[profileMemberId] : undefined;
-  const addMember = useAddConversationMember(selectedConversationId ?? '');
-  const removeMember = useRemoveConversationMember(selectedConversationId ?? '');
-  const uploadAttachment = useUploadChatAttachment(selectedConversationId ?? '');
-  const updateGroupAvatar = useUpdateGroupAvatar(selectedConversationId ?? '');
-  const markConversationRead = useMarkConversationRead();
+  }, [conversations]);
+  const members = useMemberMap(memberIds);
 
-  useEffect(() => {
-    if (!selectedConversationId && sortedConversations.length) {
-      setSelectedConversationId(sortedConversations[0].id);
-    }
-  }, [selectedConversationId, sortedConversations]);
+  const open = (id: string | null) => setSearchParams(id ? { c: id } : {}, { replace: Boolean(withMember) });
 
+  // ?with=memberId → existing direct conversation, or a new one
+  const resolvingRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!selectedConversationId) {
+    if (!withMember || !conversationsQuery.isSuccess || resolvingRef.current === withMember) return;
+    resolvingRef.current = withMember;
+    const existing = conversations.find((conversation) => conversation.type === 'DIRECT' && conversation.memberIds.includes(withMember));
+    if (existing) {
+      open(existing.id);
       return;
     }
-
-    markConversationRead.mutate(selectedConversationId);
-  }, [selectedConversationId]);
-
-  useEffect(() => {
-    setHistoryPage(0);
-    setLiveMessages([]);
-    setMemberToAdd([]);
-    setIsGroupDetailsOpen(false);
-  }, [selectedConversationId]);
-
-  useEffect(() => {
-    if (conversationType === 'DIRECT' && selectedMembers.length > 1) {
-      setSelectedMembers((members) => members.slice(0, 1));
-    }
-  }, [conversationType, selectedMembers.length]);
-
-  const handleSocketMessage = useCallback((message: Message) => {
-    setLastActivityByConversation((current) => ({
-      ...current,
-      [message.conversationId]: message.createdAt,
-    }));
-    if (user?.memberId && message.senderId !== user.memberId) {
-      markConversationRead.mutate(message.conversationId);
-    }
-    setLiveMessages((current) => {
-      if (current.some((item) => item.id === message.id)) {
-        return current;
-      }
-      return [...current, message];
-    });
-  }, [markConversationRead, user?.memberId]);
-
-  const handleOverviewMessage = useCallback(
-    (message: Message) => {
-      setLastActivityByConversation((current) => ({
-        ...current,
-        [message.conversationId]: message.createdAt,
-      }));
-      void conversationsQuery.refetch();
-    },
-    [conversationsQuery],
-  );
-
-  const { isConnected, sendMessage } = useChatSocket({
-    conversationId: selectedConversationId,
-    onMessage: handleSocketMessage,
-    onError: setError,
-  });
-  useChatOverviewSocket({
-    conversationIds: overviewConversationIds,
-    onMessage: handleOverviewMessage,
-    onError: setError,
-  });
-
-  const historicalMessages = useMemo(
-    () => [...(messagesQuery.data?.content ?? [])].reverse(),
-    [messagesQuery.data?.content],
-  );
-  const mergedMessages = useMemo(() => {
-    const seen = new Set<string>();
-    return [...historicalMessages, ...liveMessages].filter((message) => {
-      if (seen.has(message.id)) {
-        return false;
-      }
-      seen.add(message.id);
-      return true;
-    });
-  }, [historicalMessages, liveMessages]);
-
-  useEffect(() => {
-    const history = messageHistoryRef.current;
-    if (history) {
-      history.scrollTop = history.scrollHeight;
-    }
-  }, [mergedMessages.length, selectedConversationId]);
-
-  const handleCreateConversation = async (event: FormEvent) => {
-    event.preventDefault();
-    setError(null);
-
-    const memberIds = selectedMembers.map((member) => member.id);
-    if (memberIds.length === 0) {
-      setError('Hãy chọn ít nhất một thành viên để bắt đầu trò chuyện.');
-      return;
-    }
-
-    try {
-      const created = await createConversation.mutateAsync({
-        type: conversationType,
-        title: conversationType === 'GROUP' ? conversationTitleInput || undefined : undefined,
-        memberIds,
+    createConversation
+      .mutateAsync({ type: 'DIRECT', memberIds: [withMember] })
+      .then((created) => open(created.id))
+      .catch((caught) => {
+        toast.error(toApiError(caught).message ?? 'Không thể mở cuộc trò chuyện');
+        open(null);
       });
-      setConversationTitleInput('');
-      setSelectedMembers([]);
-      setSelectedConversationId(created.id);
-    } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không thể tạo cuộc trò chuyện');
+    // runs once per ?with= value; open/createConversation are stable enough for that
+  }, [withMember, conversationsQuery.isSuccess]);
+
+  // wide screens: open the most recent conversation by default
+  useEffect(() => {
+    if (!selectedId && !withMember && conversations.length && window.matchMedia('(min-width: 1024px)').matches) {
+      const latest = [...conversations].sort((a, b) => new Date(b.lastMessageAt ?? 0).getTime() - new Date(a.lastMessageAt ?? 0).getTime())[0];
+      setSearchParams({ c: latest.id }, { replace: true });
     }
+  }, [selectedId, withMember, conversations, setSearchParams]);
+
+  const title = selected ? conversationTitle(selected, members, me) : '';
+  const directId = otherMemberId(selected, me);
+  const headerAvatar = resolveAssetUrl(selected?.type === 'GROUP' ? selected.avatarUrl : directId ? members[directId]?.avatarUrl : null);
+
+  const onSend = (content: string) => {
+    const sent = send(content);
+    if (!sent && content.trim()) toast.error('Mất kết nối, đang thử kết nối lại. Vui lòng gửi lại sau giây lát.');
+    return sent;
   };
-
-  const handleAddMember = async (event: FormEvent) => {
-    event.preventDefault();
-
-    if (!selectedConversationId || memberToAdd.length === 0) {
-      return;
-    }
-
-    setError(null);
-    try {
-      await Promise.all(memberToAdd.map((member) => addMember.mutateAsync(member.id)));
-      setMemberToAdd([]);
-    } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không thể thêm thành viên');
-    }
-  };
-
-  const handleRemoveMember = async (memberId: string) => {
-    const name = memberDisplayName(selectedConversation, memberId, user?.memberId);
-    if (!window.confirm(`Xóa ${name} khỏi nhóm?`)) {
-      return;
-    }
-
-    setError(null);
-    try {
-      await removeMember.mutateAsync(memberId);
-    } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không thể xóa thành viên');
-    }
-  };
-
-  const handleLeaveGroup = async () => {
-    if (!selectedConversationId || !user?.memberId || selectedConversation?.type !== 'GROUP') {
-      return;
-    }
-    if (!window.confirm('Bạn chắc chắn muốn rời nhóm chat này?')) {
-      return;
-    }
-
-    setError(null);
-    try {
-      await removeMember.mutateAsync(user.memberId);
-      setLiveMessages([]);
-      setIsGroupDetailsOpen(false);
-      const refreshed = await conversationsQuery.refetch();
-      setSelectedConversationId(refreshed.data?.[0]?.id ?? null);
-    } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không thể rời nhóm chat');
-    }
-  };
-
-  const handleGroupAvatarUpload = async (file?: File | null) => {
-    if (!file || !selectedConversationId || selectedConversation?.type !== 'GROUP') {
-      return;
-    }
-
-    setError(null);
-    try {
-      await updateGroupAvatar.mutateAsync(file);
-    } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không thể đổi ảnh nhóm');
-    }
-  };
-
-  const handleAttachmentUpload = async (file?: File | null) => {
-    if (!file || !selectedConversationId) {
-      return;
-    }
-
-    setError(null);
-    try {
-      const uploaded = await uploadAttachment.mutateAsync(file);
-      setLastActivityByConversation((current) => ({
-        ...current,
-        [uploaded.conversationId]: uploaded.createdAt,
-      }));
-      setLiveMessages((current) => (current.some((message) => message.id === uploaded.id) ? current : [...current, uploaded]));
-    } catch (caught) {
-      setError(toApiError(caught).message ?? 'Không thể gửi file');
-    }
-  };
-
-  const handleSend = (event: FormEvent) => {
-    event.preventDefault();
-    setError(null);
-
-    const sent = sendMessage(draft);
-
-    if (!sent) {
-      setError('Chưa kết nối realtime hoặc nội dung tin nhắn trống.');
-      return;
-    }
-
-    setDraft('');
-  };
-
-  const openMemberProfile = (memberId?: string | null) => {
-    if (memberId) {
-      setProfileMemberId(memberId);
-    }
-  };
-
-  const getMemberName = (conversation: Conversation | null, memberId?: string | null) => {
-    if (!memberId) {
-      return 'Thành viên';
-    }
-    if (memberId === user?.memberId) {
-      return 'Bạn';
-    }
-    return memberMap[memberId]?.fullName ?? memberDisplayName(conversation, memberId, user?.memberId);
-  };
-
-  const getMemberAvatar = (memberId?: string | null) => resolveAssetUrl(memberId ? memberMap[memberId]?.avatarUrl : null);
-
-  const getDirectOtherMemberId = (conversation: Conversation | null) =>
-    conversation?.type === 'DIRECT' ? conversation.memberIds.find((memberId) => memberId !== user?.memberId) : null;
-
-  const selectedDirectMemberId = getDirectOtherMemberId(selectedConversation);
-  const selectedTitle = selectedConversation
-    ? selectedDirectMemberId
-      ? getMemberName(selectedConversation, selectedDirectMemberId)
-      : conversationTitle(selectedConversation, user?.memberId)
-    : '';
-  const selectedAvatarUrl =
-    selectedConversation?.type === 'GROUP'
-      ? resolveAssetUrl(selectedConversation.avatarUrl)
-      : getMemberAvatar(selectedDirectMemberId);
 
   return (
-    <div className="chat-page messenger-layout">
-      <aside className="surface chat-sidebar">
-        <div className="chat-sidebar-header">
-          <div>
-            <p className="page-eyebrow">Trao đổi nội bộ</p>
-            <h1 className="page-title">Chat</h1>
-            <p className="page-description chat-connection">
-              {isConnected ? (
-                <>
-                  <Wifi size={14} aria-hidden="true" /> Trực tuyến 
-                </>
-              ) : (
-                <>
-                  <WifiOff size={14} aria-hidden="true" /> Ngoại tuyến
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-
-        <form className="chat-create-form" onSubmit={handleCreateConversation}>
-          <select value={conversationType} onChange={(event) => setConversationType(event.target.value as ConversationType)}>
-            <option value="DIRECT">Chat trực tiếp</option>
-            <option value="GROUP">Nhóm chat</option>
-          </select>
-          {conversationType === 'GROUP' && (
-            <input
-              placeholder="Tên nhóm"
-              value={conversationTitleInput}
-              onChange={(event) => setConversationTitleInput(event.target.value)}
-            />
-          )}
-          <MemberPicker
-            label={conversationType === 'GROUP' ? 'Thành viên nhóm' : 'Người nhận'}
-            selectedMembers={selectedMembers}
-            onSelect={(member) =>
-              setSelectedMembers((current) => (conversationType === 'DIRECT' ? [member] : [...current, member]))
-            }
-            onRemove={(memberId) => setSelectedMembers((current) => current.filter((member) => member.id !== memberId))}
-            excludeIds={user?.memberId ? [user.memberId] : []}
-            multiple={conversationType === 'GROUP'}
-          />
-          <button className="primary-button inline-button" type="submit" disabled={createConversation.isPending}>
-            <Plus size={17} aria-hidden="true" />
-            Tạo
-          </button>
-        </form>
-
-        <div className="conversation-list">
-          {conversationsQuery.isLoading && <LoadingSkeleton rows={5} />}
-          {sortedConversations.map((conversation) => {
-            const directMemberId = getDirectOtherMemberId(conversation);
-            const title = directMemberId
-              ? getMemberName(conversation, directMemberId)
-              : conversationTitle(conversation, user?.memberId);
-            const unreadCount = conversation.unreadCount ?? 0;
-            return (
-              <button
-                className={conversation.id === selectedConversationId ? 'conversation-item active' : 'conversation-item'}
-                key={conversation.id}
-                type="button"
-                onClick={() => setSelectedConversationId(conversation.id)}
-                title={title}
-              >
-                <UserAvatar
-                  name={title}
-                  src={conversation.type === 'GROUP' ? resolveAssetUrl(conversation.avatarUrl) : getMemberAvatar(directMemberId)}
-                  size="sm"
-                />
-                <span className="conversation-copy">
-                  <strong>{title}</strong>
-                  <span>
-                    {conversation.type === 'GROUP' ? 'Nhóm' : 'Trực tiếp'} · {conversation.memberIds.length} thành viên
-                  </span>
-                </span>
-                {unreadCount > 0 && <strong className="chat-unread-badge">{unreadCount > 99 ? '99+' : unreadCount}</strong>}
-              </button>
-            );
-          })}
-          {!conversationsQuery.isLoading && (conversationsQuery.data ?? []).length === 0 && (
-            <EmptyState title="Chưa có cuộc trò chuyện" />
-          )}
-        </div>
+    // phones/tablets: pinned between the top bar and the tab bar; desktop: fills the content area
+    <div className="flex overflow-hidden bg-white max-lg:fixed max-lg:inset-x-0 max-lg:top-14 max-lg:bottom-[calc(4rem+env(safe-area-inset-bottom))] max-lg:z-10 lg:h-[calc(100dvh-8rem)] lg:rounded-card lg:border lg:border-slate-200 lg:shadow-card">
+      <aside className={cn('w-full min-w-0 border-slate-200 lg:block lg:w-80 lg:border-r xl:w-96', selected || withMember ? 'hidden' : 'block')}>
+        <ConversationList
+          conversations={conversations}
+          isLoading={conversationsQuery.isLoading}
+          members={members}
+          me={me}
+          selectedId={selected?.id ?? null}
+          onSelect={open}
+          onNew={() => setNewOpen(true)}
+          connected={connected}
+        />
       </aside>
 
-      <section className="surface chat-panel">
-        {error && <div className="error-box">{error}</div>}
-
-        {!selectedConversation ? (
-          <div className="empty-panel">
-            <MessageCircle size={38} aria-hidden="true" />
-            <p>Chọn hoặc tạo cuộc trò chuyện để bắt đầu.</p>
-          </div>
+      <section className={cn('min-w-0 flex-1 flex-col', selected || withMember ? 'flex' : 'hidden lg:flex')} aria-label={title || 'Cuộc trò chuyện'}>
+        {!selected ? (
+          withMember ? (
+            <LoadingSkeleton rows={4} />
+          ) : (
+            <div className="flex flex-1 items-center justify-center">
+              <EmptyState
+                icon={<MessageCircle size={22} />}
+                title="Chọn một cuộc trò chuyện"
+                description="Hoặc bắt đầu trò chuyện mới với đoàn viên, cán bộ."
+                action={<Button onClick={() => setNewOpen(true)}>Tin nhắn mới</Button>}
+              />
+            </div>
+          )
         ) : (
           <>
-            <header className="chat-panel-header">
+            <header className="flex items-center gap-2 border-b border-slate-200 px-2 py-2 sm:px-3">
+              <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => open(null)} aria-label="Quay lại danh sách">
+                <ArrowLeft size={20} aria-hidden="true" />
+              </Button>
               <button
-                className="avatar-profile-button"
                 type="button"
-                onClick={() =>
-                  selectedConversation.type === 'GROUP' ? setIsGroupDetailsOpen(true) : openMemberProfile(selectedDirectMemberId)
-                }
-                disabled={selectedConversation.type !== 'GROUP' && !selectedDirectMemberId}
-                aria-label={selectedConversation.type === 'GROUP' ? 'Mở thông tin nhóm' : `Xem hồ sơ ${selectedTitle}`}
+                className="flex min-w-0 flex-1 items-center gap-3 rounded-lg p-1 text-left hover:bg-slate-50"
+                onClick={() => (selected.type === 'GROUP' ? setGroupOpen(true) : directId && setProfileId(directId))}
               >
-                <UserAvatar name={selectedTitle} src={selectedAvatarUrl} size="md" />
+                <UserAvatar name={title} src={headerAvatar} size="sm" />
+                <span className="min-w-0">
+                  <span className="block truncate font-semibold text-slate-900">{title}</span>
+                  <span className="block truncate text-xs text-slate-600">
+                    {typingNames.length ? 'đang nhập…' : selected.type === 'GROUP' ? `${selected.memberIds.length} thành viên` : (members[directId ?? '']?.organizationName ?? 'Trò chuyện riêng')}
+                  </span>
+                </span>
               </button>
-              <div>
-                <button
-                  className="chat-title-button"
-                  type="button"
-                  onClick={() =>
-                    selectedConversation.type === 'GROUP' ? setIsGroupDetailsOpen(true) : openMemberProfile(selectedDirectMemberId)
-                  }
-                  disabled={selectedConversation.type !== 'GROUP' && !selectedDirectMemberId}
-                >
-                  <h2>{selectedTitle}</h2>
-                </button>
-                <p>
-                  {selectedConversation.type === 'GROUP' ? 'Nhóm chat' : 'Chat trực tiếp'} · {selectedConversation.memberIds.length} thành viên
-                </p>
-              </div>
-              {selectedConversation.type === 'GROUP' && (
-                <button
-                  className="secondary-button inline-button chat-leave-button"
-                  type="button"
-                  onClick={() => setIsGroupDetailsOpen(true)}
-                >
-                  <UsersRound size={16} aria-hidden="true" />
-                  Thông tin nhóm
-                </button>
+              {selected.type === 'GROUP' && (
+                <Button variant="ghost" size="icon" onClick={() => setGroupOpen(true)} aria-label="Thông tin nhóm">
+                  <Info size={20} aria-hidden="true" />
+                </Button>
               )}
             </header>
 
-            <div className="message-history" ref={messageHistoryRef}>
-              <div className="history-actions">
-                <button
-                  className="secondary-button inline-button"
-                  type="button"
-                  disabled={!messagesQuery.data || historyPage >= messagesQuery.data.totalPages - 1}
-                  onClick={() => setHistoryPage((current) => current + 1)}
-                >
-                  Tải tin cũ hơn
-                </button>
-                {messagesQuery.isLoading && <Badge tone="gray">Đang tải history</Badge>}
+            {messagesQuery.isLoading ? (
+              <div className="flex-1 p-4">
+                <LoadingSkeleton rows={6} />
               </div>
-
-              {mergedMessages.map((message) => {
-                const isMine = message.senderId === user?.memberId;
-                const senderName = isMine
-                  ? 'Bạn'
-                  : (memberMap[message.senderId]?.fullName ??
-                    message.senderName ??
-                    memberDisplayName(selectedConversation, message.senderId, user?.memberId));
-                const attachmentUrl = message.attachmentUrl ? resolveAssetUrl(message.attachmentUrl) : undefined;
-                return (
-                  <article className={isMine ? 'message-bubble mine' : 'message-bubble'} key={message.id}>
-                    {!isMine && (
-                      <button
-                        className="avatar-profile-button"
-                        type="button"
-                        onClick={() => openMemberProfile(message.senderId)}
-                        aria-label={`Xem hồ sơ ${senderName}`}
-                      >
-                        <UserAvatar name={senderName} src={getMemberAvatar(message.senderId)} size="sm" />
-                      </button>
-                    )}
-                    <div className="message-content">
-                      <div className="message-meta">
-                        <button type="button" onClick={() => openMemberProfile(message.senderId)}>
-                          <strong>{senderName}</strong>
-                        </button>
-                        <span>{formatDateTime(message.createdAt)}</span>
-                      </div>
-                      {attachmentUrl && message.attachmentKind === 'IMAGE' && (
-                        <a href={attachmentUrl} target="_blank" rel="noreferrer">
-                          <img
-                            className="chat-message-image"
-                            src={attachmentUrl}
-                            alt={message.attachmentName ?? 'Ảnh trong chat'}
-                          />
-                        </a>
-                      )}
-                      {attachmentUrl && message.attachmentKind === 'FILE' && (
-                        <a className="chat-file-link" href={attachmentUrl} target="_blank" rel="noreferrer">
-                          <Paperclip size={16} aria-hidden="true" />
-                          <span>{message.attachmentName ?? message.content}</span>
-                        </a>
-                      )}
-                      {(!message.attachmentUrl || message.content !== message.attachmentName) && <p>{message.content}</p>}
-                    </div>
-                  </article>
-                );
-              })}
-              {mergedMessages.length === 0 && !messagesQuery.isLoading && <EmptyState title="Chưa có tin nhắn" />}
-            </div>
-
-            <form className="message-input" onSubmit={handleSend}>
-              <div className="message-upload-actions">
-                <label className="icon-button" title="Gửi ảnh" aria-label="Gửi ảnh">
-                  <ImageIcon size={18} aria-hidden="true" />
-                  <input
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    type="file"
-                    onChange={(event) => {
-                      void handleAttachmentUpload(event.target.files?.[0]);
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
-                <label className="icon-button" title="Gửi file" aria-label="Gửi file">
-                  <Paperclip size={18} aria-hidden="true" />
-                  <input
-                    accept=".pdf,.txt,.doc,.docx,.xls,.xlsx,image/jpeg,image/png,image/webp,image/gif"
-                    type="file"
-                    onChange={(event) => {
-                      void handleAttachmentUpload(event.target.files?.[0]);
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
-              </div>
-              <input
-                maxLength={2000}
-                placeholder="Nhập tin nhắn..."
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
+            ) : (
+              <MessageList
+                conversation={selected}
+                messages={messages}
+                members={members}
+                me={me}
+                typingNames={typingNames}
+                hasOlder={Boolean(messagesQuery.hasNextPage)}
+                loadingOlder={messagesQuery.isFetchingNextPage}
+                onLoadOlder={() => void messagesQuery.fetchNextPage()}
+                onOpenProfile={setProfileId}
               />
-              <button
-                className="primary-button inline-button"
-                type="submit"
-                disabled={!isConnected || !draft.trim() || uploadAttachment.isPending}
-              >
-                <Send size={17} aria-hidden="true" />
-                Gửi
-              </button>
-            </form>
+            )}
+
+            <MessageComposer
+              disabled={!connected}
+              uploading={upload.isPending}
+              onSend={onSend}
+              onTyping={notifyTyping}
+              onAttach={(file) => upload.mutate(file, { onError: (caught) => toast.error(toApiError(caught).message ?? 'Không gửi được tệp') })}
+            />
+
+            {selected.type === 'GROUP' && (
+              <GroupInfoDialog
+                open={groupOpen}
+                onClose={() => setGroupOpen(false)}
+                conversation={selected}
+                title={title}
+                members={members}
+                me={me}
+                onOpenProfile={setProfileId}
+                onLeft={() => {
+                  setGroupOpen(false);
+                  open(null);
+                  toast.success('Đã rời nhóm');
+                }}
+              />
+            )}
           </>
         )}
       </section>
 
-      {isGroupDetailsOpen && selectedConversation?.type === 'GROUP' && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Thông tin nhóm chat">
-          <section className="surface profile-modal chat-group-modal">
-            <button
-              className="icon-button modal-close-button"
-              type="button"
-              onClick={() => setIsGroupDetailsOpen(false)}
-              aria-label="Đóng thông tin nhóm"
-            >
-              <X size={18} aria-hidden="true" />
-            </button>
-
-            <div className="profile-modal-header">
-              <UserAvatar name={selectedTitle} src={selectedAvatarUrl} size="lg" />
-              <div>
-                <p className="page-eyebrow">Nhóm chat</p>
-                <h2>{selectedTitle}</h2>
-                <p>{selectedConversation.memberIds.length} thành viên</p>
-                <label className="secondary-button inline-button chat-avatar-upload">
-                  <ImageIcon size={16} aria-hidden="true" />
-                  Đổi ảnh nhóm
-                  <input
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    type="file"
-                    onChange={(event) => {
-                      void handleGroupAvatarUpload(event.target.files?.[0]);
-                      event.target.value = '';
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
-
-            <form className="chat-group-section" onSubmit={handleAddMember}>
-              <h3>Thêm thành viên</h3>
-              <MemberPicker
-                label="Tìm thành viên"
-                selectedMembers={memberToAdd}
-                onSelect={(member) => setMemberToAdd((current) => [...current, member])}
-                onRemove={(memberId) => setMemberToAdd((current) => current.filter((member) => member.id !== memberId))}
-                excludeIds={selectedConversation.memberIds}
-              />
-              <button
-                className="secondary-button inline-button"
-                type="submit"
-                disabled={addMember.isPending || memberToAdd.length === 0}
-              >
-                Thêm vào nhóm
-              </button>
-            </form>
-
-            <section className="chat-group-section">
-              <h3>Thành viên nhóm</h3>
-              <div className="chat-member-list">
-                {selectedConversation.memberIds.map((memberId) => {
-                  const name = getMemberName(selectedConversation, memberId);
-                  return (
-                    <div className="chat-member-row" key={memberId}>
-                      <button type="button" onClick={() => openMemberProfile(memberId)}>
-                        <UserAvatar name={name} src={getMemberAvatar(memberId)} size="sm" />
-                        <span>
-                          <strong>{name}</strong>
-                          <small>{memberMap[memberId]?.organizationName ?? 'Chưa có TDP'}</small>
-                        </span>
-                      </button>
-                      {memberId !== user?.memberId && (
-                        <button
-                          className="text-action danger"
-                          type="button"
-                          onClick={() => handleRemoveMember(memberId)}
-                          disabled={removeMember.isPending}
-                        >
-                          Xóa
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <button
-              className="danger-button inline-button"
-              type="button"
-              onClick={handleLeaveGroup}
-              disabled={removeMember.isPending}
-            >
-              <LogOut size={16} aria-hidden="true" />
-              Rời nhóm
-            </button>
-          </section>
-        </div>
-      )}
-
-      {profileMemberId && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-label="Hồ sơ đoàn viên">
-          <section className="surface profile-modal">
-            <button
-              className="icon-button modal-close-button"
-              type="button"
-              onClick={() => setProfileMemberId(null)}
-              aria-label="Đóng hồ sơ"
-            >
-              <X size={18} aria-hidden="true" />
-            </button>
-
-            {selectedProfileQuery.isLoading && <LoadingSkeleton rows={5} />}
-            {selectedProfileQuery.error && (
-              <section className="error-box">{toApiError(selectedProfileQuery.error).message}</section>
-            )}
-
-            {!selectedProfile && !selectedProfileQuery.isLoading && selectedProfileBasic && (
-              <div className="profile-modal-header">
-                <UserAvatar
-                  name={selectedProfileBasic.fullName}
-                  src={resolveAssetUrl(selectedProfileBasic.avatarUrl)}
-                  size="lg"
-                />
-                <div>
-                  <p className="page-eyebrow">Hồ sơ đoàn viên</p>
-                  <h2>{selectedProfileBasic.fullName}</h2>
-                  <p>{selectedProfileBasic.organizationName || 'Chưa có TDP'}</p>
-                </div>
-              </div>
-            )}
-
-            {selectedProfile && (
-              <>
-                <div className="profile-modal-header">
-                  <UserAvatar
-                    name={selectedProfile.fullName}
-                    src={resolveAssetUrl(selectedProfile.avatarUrl)}
-                    size="lg"
-                  />
-                  <div>
-                    <p className="page-eyebrow">Hồ sơ đoàn viên</p>
-                    <h2>{selectedProfile.fullName}</h2>
-                    <p>{selectedProfile.organizationName || 'Chưa có TDP'}</p>
-                    <div className="form-actions section-gap">
-                      <Badge tone="green">{memberStatusLabel[selectedProfile.memberStatus]}</Badge>
-                      <Badge tone="blue">{roleLabel[selectedProfile.memberRole] ?? selectedProfile.memberRole}</Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="detail-grid profile-modal-detail">
-                  <div>
-                    <span>Email</span>
-                    <strong>{selectedProfile.email || '-'}</strong>
-                  </div>
-                  <div>
-                    <span>Số điện thoại</span>
-                    <strong>{selectedProfile.phone || '-'}</strong>
-                  </div>
-                  <div>
-                    <span>Ngày sinh</span>
-                    <strong>{selectedProfile.dateOfBirth || '-'}</strong>
-                  </div>
-                  <div>
-                    <span>Giới tính</span>
-                    <strong>{selectedProfile.gender ? genderLabel[selectedProfile.gender] : '-'}</strong>
-                  </div>
-                  <div>
-                    <span>Địa chỉ</span>
-                    <strong>{selectedProfile.address || '-'}</strong>
-                  </div>
-                  <div>
-                    <span>Ngày vào Đoàn</span>
-                    <strong>{selectedProfile.youthUnionJoinDate || '-'}</strong>
-                  </div>
-                </div>
-              </>
-            )}
-          </section>
-        </div>
-      )}
+      <NewConversationDialog
+        open={newOpen}
+        onClose={() => setNewOpen(false)}
+        onCreated={(id) => {
+          setNewOpen(false);
+          open(id);
+        }}
+      />
+      <MemberProfileDialog memberId={profileId} basic={profileId ? members[profileId] : undefined} onClose={() => setProfileId(null)} />
     </div>
   );
 };

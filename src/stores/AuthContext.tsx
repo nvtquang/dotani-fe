@@ -8,6 +8,8 @@ import {
   useState,
 } from 'react';
 import { authService } from '../services/authService';
+import { chatSocket } from '../api/chatSocket';
+import { queryClient } from '../api/queryClient';
 import { tokenStorage } from '../api/tokenStorage';
 import type { AuthUser, GoogleLoginRequest, LoginRequest, RegisterRequest } from '../types/auth';
 
@@ -30,6 +32,12 @@ type AuthContextValue = {
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+
+/** Drops everything cached for the previous account: realtime connection and query data. */
+const endSession = () => {
+  chatSocket.disconnect();
+  queryClient.clear();
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -116,11 +124,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = useCallback(() => {
     void authService.logout();
+    endSession();
     setUser(null);
   }, []);
 
   const logoutEverywhere = useCallback(async () => {
     await authService.logout(true);
+    endSession();
     setUser(null);
   }, []);
 

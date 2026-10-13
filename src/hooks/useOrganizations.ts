@@ -9,10 +9,12 @@ export const organizationKeys = {
   members: (id: string) => ['organizations', 'detail', id, 'members'] as const,
 };
 
-export const useOrganizations = () =>
+export const useOrganizations = (enabled = true) =>
   useQuery({
     queryKey: organizationKeys.all,
     queryFn: organizationService.list,
+    enabled,
+    staleTime: 5 * 60_000,
   });
 
 export const usePublicOrganizations = () =>

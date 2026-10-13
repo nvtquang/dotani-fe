@@ -1,244 +1,148 @@
-import { useMemo, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Paperclip, Pencil, Upload } from 'lucide-react';
+import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { AttachmentGallery } from '../../components/AttachmentGallery';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
-import { Card, EmptyState, LoadingSkeleton, PageHeader, StatusBadge } from '../../components/ui';
-import { PostForm } from '../../features/posts/PostForm';
-import { useDeletePost, useDeletePostImage, usePost, useUpdatePost, useUploadPostImages } from '../../hooks/usePosts';
+import { Alert, Badge, Button, Card, Dialog, LoadingSkeleton, Skeleton, StatusBadge, Time, UserAvatar, useConfirm, useToast } from '../../components/ui';
+import { PostForm, PostFormFooter } from '../../features/posts/PostForm';
 import { useOrganizations } from '../../hooks/useOrganizations';
+import { useDeletePost, useDeletePostImage, usePost, useUpdatePost, useUploadPostImages } from '../../hooks/usePosts';
+import { isManager, isWardRole } from '../../routes/navigation';
 import { useAuth } from '../../stores/AuthContext';
-import type { ApiError } from '../../types/api';
 import type { PostFormValues } from '../../types/post';
-import { resolveAssetUrl } from '../../utils/assetUrl';
-import { formatDateTime } from '../../utils/dateTime';
-import { postStatusLabel, postTypeLabel } from '../../utils/labels';
 import { toApiError } from '../../utils/apiError';
-
-const canManagePosts = (role: string | null) => role === 'WARD_SECRETARY' || role === 'WARD_DEPUTY_SECRETARY';
-
-const isTdpOfficer = (role: string | null) => role === 'TDP_SECRETARY' || role === 'TDP_DEPUTY_SECRETARY';
+import { postStatusLabel, postTypeLabel } from '../../utils/labels';
 
 export const PostDetailPage = () => {
   const { id = '' } = useParams();
-  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const { role, user } = useAuth();
-  const [formError, setFormError] = useState<ApiError | null>(null);
-  const [openImageUrl, setOpenImageUrl] = useState<string | null>(null);
-  const isEditing = searchParams.get('mode') === 'edit';
-  const canManage = canManagePosts(role);
+  const toast = useToast();
+  const confirm = useConfirm();
+  const formId = useId();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { role } = useAuth();
+  const canManage = isWardRole(role);
+  const isEditing = canManage && searchParams.get('mode') === 'edit';
+  const [formError, setFormError] = useState<string | null>(null);
 
   const postQuery = usePost(id);
-  const organizationsQuery = useOrganizations();
-  const organizations = useMemo(
-    () => (organizationsQuery.data ?? []).filter((organization) => organization.type === 'YOUTH_UNION_BRANCH'),
-    [organizationsQuery.data],
-  );
+  const organizationsQuery = useOrganizations(canManage);
   const updatePost = useUpdatePost(id);
   const deletePost = useDeletePost();
   const uploadImages = useUploadPostImages(id);
   const deleteImage = useDeletePostImage(id);
-  const fixedOrganizationId = isTdpOfficer(role) ? user?.tdpId : undefined;
+
+  const showError = (caught: unknown, fallback: string) => toast.error(toApiError(caught).message ?? fallback);
 
   const handleUpdate = async (values: PostFormValues) => {
-    setFormError(null);
-    try {
-      await updatePost.mutateAsync({
-        ...values,
-        organizationId: fixedOrganizationId ?? values.organizationId,
-      });
-      setSearchParams({});
-    } catch (error) {
-      setFormError(toApiError(error));
-    }
+    await updatePost.mutateAsync(values);
+    toast.success('Đã lưu bài viết');
+    setSearchParams({}, { replace: true });
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Xóa bài viết này?')) {
-      return;
-    }
-
-    setFormError(null);
+    if (!(await confirm({ title: 'Xóa bài viết này?', confirmLabel: 'Xóa', tone: 'danger' }))) return;
     try {
       await deletePost.mutateAsync(id);
+      toast.success('Đã xóa bài viết');
       navigate('/posts');
-    } catch (error) {
-      setFormError(toApiError(error));
-    }
-  };
-
-  const handleUploadImages = async (files: FileList | null) => {
-    if (!files?.length) {
-      return;
-    }
-
-    setFormError(null);
-    try {
-      await uploadImages.mutateAsync(Array.from(files));
-    } catch (error) {
-      setFormError(toApiError(error));
-    } finally {
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    } catch (caught) {
+      showError(caught, 'Không xóa được bài viết');
     }
   };
 
   const handleDeleteImage = async (imageId: string) => {
-    if (!window.confirm('Xóa tệp đính kèm này?')) {
-      return;
-    }
-
-    setFormError(null);
-    try {
-      await deleteImage.mutateAsync(imageId);
-    } catch (error) {
-      setFormError(toApiError(error));
-    }
+    if (!(await confirm({ title: 'Xóa tệp đính kèm này?', confirmLabel: 'Xóa', tone: 'danger' }))) return;
+    deleteImage.mutate(imageId, { onError: (caught) => showError(caught, 'Không xóa được tệp') });
   };
 
   if (postQuery.error && toApiError(postQuery.error).status === 403) {
     return <ForbiddenMessage />;
   }
-
   if (postQuery.isLoading) {
     return (
-      <Card>
-        <LoadingSkeleton rows={5} />
+      <Card className="p-5">
+        <Skeleton className="mb-4 h-7 w-2/3" />
+        <LoadingSkeleton rows={6} />
       </Card>
     );
   }
-
   if (!postQuery.data) {
-    return <section className="error-box">Không tìm thấy bài viết.</section>;
+    return <Alert>Không tìm thấy bài viết.</Alert>;
   }
 
   const post = postQuery.data;
 
   return (
-    <div className="page-stack">
-      <PageHeader
-        eyebrow={postTypeLabel[post.type]}
-        title={post.title}
-        description={`${postStatusLabel[post.status]} · ${formatDateTime(post.createdAt)}`}
-        actions={
-          <>
-            <Link className="secondary-button inline-button" to="/posts">
-              <ArrowLeft size={17} aria-hidden="true" />
-              Quay lại
-            </Link>
-            {canManage && (
-              <>
-                <button
-                  className="primary-button inline-button"
-                  type="button"
-                  onClick={() => setSearchParams(isEditing ? {} : { mode: 'edit' })}
-                >
-                  <Pencil size={17} aria-hidden="true" />
-                  {isEditing ? 'Xem chi tiết' : 'Sửa'}
-                </button>
-                <button className="secondary-button inline-button" type="button" onClick={handleDelete}>
-                  Xóa
-                </button>
-              </>
-            )}
-          </>
-        }
-      />
+    <div className="mx-auto max-w-3xl">
+      <Link to="/posts" className="mb-3 inline-flex h-10 items-center gap-1.5 text-sm font-medium text-slate-700 hover:text-slate-900">
+        <ArrowLeft size={17} aria-hidden="true" />
+        Bài viết
+      </Link>
 
-      {formError?.status === 403 && <ForbiddenMessage />}
-      {formError && formError.status !== 403 && <section className="error-box">{formError.message}</section>}
-
-      {isEditing && canManage ? (
-        <Card>
-          <div className="section-heading">
-            <h2>Sửa bài viết</h2>
-          </div>
-          <PostForm
-            initialValue={post}
-            organizations={organizations}
-            fixedOrganizationId={fixedOrganizationId}
-            isSubmitting={updatePost.isPending}
-            submitLabel="Lưu bài viết"
-            onSubmit={handleUpdate}
-            onCancel={() => setSearchParams({})}
-          />
-        </Card>
-      ) : (
-        <article className="surface post-body">
-          <StatusBadge value={post.status} label={postStatusLabel[post.status]} />
-          <p>{post.content}</p>
-        </article>
-      )}
-
-      <Card>
-        <div className="section-heading">
-          <div>
-            <h2>Tệp đính kèm</h2>
-            <p className="page-description">Upload nhiều ảnh hoặc tài liệu, backend validate định dạng và dung lượng.</p>
-          </div>
-          {canManage && (
-            <>
-              <input
-                ref={fileInputRef}
-                className="visually-hidden"
-                type="file"
-                multiple
-                accept="image/jpeg,image/png,image/webp,.pdf,.txt,.doc,.docx,.xls,.xlsx"
-                onChange={(event) => handleUploadImages(event.target.files)}
-              />
-              <button
-                className="primary-button inline-button"
-                type="button"
-                disabled={uploadImages.isPending}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload size={17} aria-hidden="true" />
-                Đính kèm
-              </button>
-            </>
-          )}
+      <Card as="article" className="p-4 sm:p-6">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge tone="gray">{postTypeLabel[post.type]}</Badge>
+          {isManager(role) && post.status !== 'PUBLISHED' && <StatusBadge value={post.status} label={postStatusLabel[post.status]} />}
         </div>
-
-        <div className="image-grid">
-          {(post.images ?? []).map((image) => {
-            const imageUrl = resolveAssetUrl(image.imageUrl);
-            const isImage = !image.attachmentKind || image.attachmentKind === 'IMAGE';
-            return (
-              <div className="image-tile" key={image.id}>
-                {imageUrl && isImage && (
-                  <button type="button" onClick={() => setOpenImageUrl(imageUrl)}>
-                    <img src={imageUrl} alt={image.fileName ?? 'Ảnh bài viết'} />
-                  </button>
-                )}
-                {imageUrl && !isImage && (
-                  <a className="chat-file-link" href={imageUrl} target="_blank" rel="noreferrer">
-                    <Paperclip size={16} aria-hidden="true" />
-                    <span>{image.fileName ?? 'Tệp đính kèm'}</span>
-                  </a>
-                )}
-                {canManage && (
-                  <button className="danger-link" type="button" onClick={() => handleDeleteImage(image.id)}>
-                    Xóa
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          {(post.images ?? []).length === 0 && <EmptyState title="Chưa có tệp đính kèm" />}
+        <h1 className="mt-2 text-xl font-bold text-slate-900 sm:text-2xl">{post.title}</h1>
+        <div className="mt-3 flex items-center gap-2.5">
+          <UserAvatar name={post.authorName ?? post.organizationName} size="sm" />
+          <div className="text-sm leading-tight">
+            <p className="font-semibold text-slate-900">{post.authorName ?? 'Ban chấp hành'}</p>
+            <p className="text-slate-600">
+              {post.organizationName ?? 'Đoàn phường'} · <Time value={post.createdAt} relative />
+            </p>
+          </div>
         </div>
+        <div className="mt-5 text-[15px] leading-relaxed whitespace-pre-line text-slate-800">{post.content}</div>
+
+        {canManage && (
+          <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-200 pt-4">
+            <Button variant="secondary" onClick={() => setSearchParams({ mode: 'edit' })}>
+              <Pencil size={16} aria-hidden="true" />
+              Sửa
+            </Button>
+            <Button variant="danger" onClick={handleDelete} loading={deletePost.isPending}>
+              <Trash2 size={16} aria-hidden="true" />
+              Xóa
+            </Button>
+          </div>
+        )}
       </Card>
 
-      {openImageUrl && (
-        <div className="modal-backdrop" role="presentation" onClick={() => setOpenImageUrl(null)}>
-          <div className="qr-modal" role="dialog" aria-modal="true" onClick={(event) => event.stopPropagation()}>
-            <img src={openImageUrl} alt="Ảnh bài viết phóng to" />
-            <button className="secondary-button inline-button" type="button" onClick={() => setOpenImageUrl(null)}>
-              Đóng
-            </button>
-          </div>
-        </div>
+      <div className="mt-4">
+        <AttachmentGallery
+          title="Ảnh và tài liệu"
+          items={(post.images ?? []).map((image) => ({ id: image.id, url: image.imageUrl, kind: image.attachmentKind ?? 'IMAGE', name: image.fileName }))}
+          manage={
+            canManage
+              ? {
+                  accept: 'image/jpeg,image/png,image/webp,.pdf,.txt,.doc,.docx,.xls,.xlsx',
+                  uploading: uploadImages.isPending,
+                  onUpload: (files) => uploadImages.mutate(files, { onError: (caught) => showError(caught, 'Không tải lên được tệp') }),
+                  onDelete: handleDeleteImage,
+                }
+              : undefined
+          }
+        />
+      </div>
+
+      {canManage && (
+        <Dialog
+          open={isEditing}
+          onClose={() => setSearchParams({}, { replace: true })}
+          title="Sửa bài viết"
+          size="lg"
+          footer={<PostFormFooter formId={formId} onCancel={() => setSearchParams({}, { replace: true })} submitLabel="Lưu" isSubmitting={updatePost.isPending} />}
+        >
+          {formError && <Alert className="mb-4">{formError}</Alert>}
+          {organizationsQuery.isLoading ? (
+            <Skeleton className="h-64" />
+          ) : (
+            <PostForm formId={formId} initialValue={post} organizations={organizationsQuery.data ?? []} onSubmit={handleUpdate} onError={setFormError} />
+          )}
+        </Dialog>
       )}
     </div>
   );

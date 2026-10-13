@@ -6,7 +6,12 @@ export const ProtectedRoute = () => {
   const location = useLocation();
 
   if (isLoading) {
-    return <section className="surface">Dang tai...</section>;
+    return (
+      <div className="flex min-h-dvh items-center justify-center" role="status">
+        <span className="size-8 animate-spin rounded-full border-4 border-brand-600 border-r-transparent" aria-hidden="true" />
+        <span className="sr-only">Đang tải</span>
+      </div>
+    );
   }
 
   if (!isAuthenticated) {

@@ -1,199 +1,45 @@
 # DOTANI Frontend
 
-Frontend React cho website DOTANI - hệ thống quản lý đoàn viên Đoàn TNCS Hồ Chí Minh Phường Thượng Cát.
+**DOTANI** là hệ thống quản lý đoàn viên cho Đoàn TNCS Hồ Chí Minh Phường Thượng Cát. Hệ thống số hóa công việc hằng ngày của tổ chức Đoàn cấp phường: từ hồ sơ đoàn viên ở từng tổ dân phố, sự kiện, đại hội, bảng tin, chat nội bộ đến đoàn phí, thi đua và biểu quyết.
 
-Backend repository: https://github.com/nvtquang/dotani-be.git
+Repository này là giao diện web. API và nghiệp vụ nằm ở [dotani-be](https://github.com/nvtquang/dotani-be).
 
-## Mô tả
+## Dành cho ai
 
-DOTANI cung cấp giao diện quản lý hồ sơ đoàn viên, tổ dân phố, sự kiện, bài viết/báo cáo hoạt động, chat realtime, thông báo, QR Banking cá nhân và dashboard dòng thời gian.
+- **Đoàn viên**: xem bảng tin, đăng ký sự kiện, nhắn tin, nhận thông báo, xem và đóng đoàn phí qua QR, tham gia biểu quyết, đề nghị chuyển sinh hoạt, xem hồ sơ thi đua của mình.
+- **Cán bộ chi đoàn tổ dân phố**: quản lý đoàn viên, sự kiện, đoàn phí, biểu quyết và xếp loại trong TDP mình phụ trách, xem báo cáo của TDP.
+- **Cán bộ Đoàn phường**: quản lý toàn phường, đăng bài, phân quyền, duyệt chuyển sinh hoạt, xem báo cáo toàn phường và nhật ký hệ thống.
 
-Frontend chỉ xử lý trải nghiệm người dùng và ẩn/hiện giao diện theo role. Bảo mật thật sự vẫn do backend enforce bằng JWT, RBAC và organization scope.
+Mỗi người chỉ thấy các mục và thao tác đúng với chức vụ, phạm vi của mình.
 
-## Stack
+## Các màn hình
 
-- React 19
-- Vite 7
-- TypeScript
-- React Router
-- Axios
-- TanStack Query
-- STOMP WebSocket
-- Lucide React
-- CSS thuần trong `src/styles.css`
-
-## Scope Frontend
-
-Các màn hình chính:
-
-| Route | Mục đích |
+| Màn hình | Nội dung |
 | --- | --- |
-| `/login` | Đăng nhập tài khoản hệ thống hoặc Google |
-| `/register` | Đăng ký đoàn viên |
-| `/dashboard` | Dòng thời gian sự kiện và bài viết |
-| `/profile` | Hồ sơ cá nhân, avatar, QR Banking |
-| `/members` | Quản lý đoàn viên theo quyền |
-| `/members/:id` | Chi tiết đoàn viên, phân quyền nếu được phép |
-| `/organizations` | Quản lý tổ dân phố |
-| `/events`, `/events/:id` | Danh sách/chi tiết sự kiện, phản hồi tham gia |
-| `/posts`, `/posts/:id` | Bài viết và báo cáo hoạt động |
-| `/chat` | Chat 1-1 và group chat realtime |
-| `/notifications` | Thông báo |
-| `/audit-logs` | Audit/phân quyền cho role được phép |
+| **Bảng tin** | Dòng thời gian trộn sự kiện và bài viết, cuộn vô hạn, cảm xúc và số bình luận ngay trên thẻ bài |
+| **Sự kiện** | Danh sách, lịch, đăng ký tham gia, tệp đính kèm, biểu quyết gắn với đại hội |
+| **Bài viết** | Tin tức, thông báo, báo cáo hoạt động; bình luận và bày tỏ cảm xúc |
+| **Chat** | Chat 1-1 và nhóm thời gian thực, gửi ảnh/tệp, đã xem, đang gõ |
+| **Thông báo** | Số thông báo chưa đọc tự cập nhật, bấm để mở đúng nội dung liên quan |
+| **Biểu quyết** | Khảo sát và bỏ phiếu (kể cả bỏ phiếu kín), xem kết quả theo cấu hình |
+| **Đoàn phí** | Kỳ thu, trạng thái đã/chưa đóng, thông tin chuyển khoản và mã QR của người thu; cán bộ ghi nhận và nhắc nợ |
+| **Đoàn viên** | Danh sách, hồ sơ chi tiết, phân quyền, hồ sơ thi đua, lịch sử chuyển sinh hoạt |
+| **Tổ dân phố** | Cây tổ chức phường và các chi đoàn |
+| **Báo cáo thống kê** | Biểu đồ đoàn viên theo TDP, độ tuổi, giới tính; tỷ lệ tham gia sự kiện theo tháng/quý; xuất CSV |
+| **Thi đua – khen thưởng** | Bảng xếp loại đoàn viên theo năm |
+| **Chuyển sinh hoạt** | Gửi, duyệt, theo dõi đề nghị chuyển giữa các TDP |
+| **Hồ sơ** | Thông tin cá nhân, ảnh đại diện, tài khoản ngân hàng và QR, đổi mật khẩu |
+| **Nhật ký hệ thống** | Lịch sử thao tác quản trị |
 
-Role đang dùng:
+## Trải nghiệm
 
-- `WARD_SECRETARY`
-- `WARD_DEPUTY_SECRETARY`
-- `TDP_SECRETARY`
-- `TDP_DEPUTY_SECRETARY`
-- `MEMBER`
+- **Dùng tốt trên điện thoại**: thanh điều hướng dưới màn hình, hộp thoại dạng bottom sheet.
+- **Tìm nhanh bằng Ctrl+K**: tìm đoàn viên, sự kiện, bài viết và nhảy tới bất kỳ trang nào.
+- **Tiếp cận được**: điều hướng bằng bàn phím, nhãn cho trình đọc màn hình, màu chữ đạt chuẩn tương phản WCAG AA, biểu đồ luôn kèm dạng bảng.
+- **Thời gian thực**: tin nhắn, trạng thái đã xem và đang gõ cập nhật tức thì qua WebSocket.
+- **Tải nhanh**: mỗi trang là một gói riêng, dữ liệu được cache và làm mới thông minh.
+- **Thông báo lỗi dễ hiểu**: lỗi từ máy chủ hiển thị bằng tiếng Việt, gắn đúng vào ô nhập liệu sai.
 
-## Cài đặt
+## Công nghệ
 
-Yêu cầu:
-
-- Node.js 20+
-- npm
-- Backend gateway chạy tại `http://localhost:8080`
-
-Clone frontend:
-
-```powershell
-cd D:\Projects\DOTANI
-git clone https://github.com/nvtquang/dotani-fe.git
-```
-
-Cài package:
-
-```powershell
-npm install
-```
-
-Tạo file môi trường:
-
-```powershell
-Copy-Item .env.example .env
-notepad .env
-```
-
-Nội dung tối thiểu:
-
-```env
-VITE_API_BASE_URL=http://localhost:8080
-VITE_CHAT_WS_URL=ws://localhost:8080/ws/chat
-```
-
-Nếu dùng đăng nhập Google:
-
-```env
-VITE_GOOGLE_CLIENT_ID=your-google-oauth-client-id.apps.googleusercontent.com
-```
-
-Trong Google Cloud Console, OAuth Client cần có Authorized JavaScript origin:
-
-```text
-http://localhost:5173
-```
-
-Chạy development:
-
-```powershell
-npm run dev
-```
-
-Mở trình duyệt:
-
-```text
-http://localhost:5173
-```
-
-Build production:
-
-```powershell
-npm run build
-```
-
-Preview bản build:
-
-```powershell
-npm run preview
-```
-
-## Chạy cùng backend bằng Docker Compose
-
-Docker Compose nằm ở repo backend và chỉ chạy **MySQL + backend**. Frontend vẫn chạy bằng `npm run dev` như trên.
-
-```powershell
-cd D:\Projects\DOTANI\dotani-be
-Copy-Item .env.example .env
-docker compose up --build -d
-```
-
-Sau đó chạy frontend:
-
-```powershell
-cd D:\Projects\DOTANI\dotani-fe
-npm run dev
-```
-
-## Tài khoản mẫu
-
-Seed development nằm ở backend và chỉ chạy với profile `dev`.
-
-Mật khẩu mặc định:
-
-```text
-Demo@12345
-```
-
-Một số tài khoản hay dùng:
-
-| Username | Email | Role |
-| --- | --- | --- |
-| `admin` | `admin@dotani.local` | `WARD_SECRETARY` |
-| `ward.secretary` | `ward.secretary@dotani.local` | `WARD_SECRETARY` |
-| `ward.deputy` | `ward.deputy@dotani.local` | `WARD_DEPUTY_SECRETARY` |
-| `tdp1.secretary` | `tdp1.secretary@dotani.local` | `TDP_SECRETARY` |
-| `tdp1.deputy` | `tdp1.deputy@dotani.local` | `TDP_DEPUTY_SECRETARY` |
-| `tdp1.member1` | `tdp1.member1@dotani.local` | `MEMBER` |
-
-Các tài khoản TDP khác theo quy ước:
-
-```text
-tdp2.secretary
-tdp2.deputy
-tdp2.member1
-...
-tdp5.secretary
-tdp5.deputy
-tdp5.member5
-```
-
-## Cấu trúc thư mục
-
-```text
-src/
-  api/          # Axios, config, query client, token storage
-  assets/       # Static assets
-  components/   # Layout, UI dùng chung
-  features/     # Form/logic theo nghiệp vụ
-  hooks/        # React Query hooks, auth/chat hooks
-  layouts/      # App layout
-  pages/        # Route pages
-  routes/       # Router, protected routes, navigation
-  services/     # API service layer
-  stores/       # Auth context/state
-  types/        # TypeScript types
-  utils/        # Helper functions
-```
-
-## Lưu ý
-
-- Không commit file `.env`.
-- Không hard-code token, Google Client ID hoặc URL môi trường vào code.
-- Luôn gọi API qua gateway `VITE_API_BASE_URL=http://localhost:8080`.
-- WebSocket chat dùng `VITE_CHAT_WS_URL=ws://localhost:8080/ws/chat`.
-- Nếu login báo `Network Error`, kiểm tra backend gateway trước: `http://localhost:8080/api/health`.
-- Nếu đổi `.env`, cần restart `npm run dev`; riêng Docker cần build lại frontend.
-- Không mock dữ liệu thay API thật khi backend đang chạy.
+React 19 · TypeScript · Vite 7 · Tailwind CSS 4 · React Router 7 · TanStack Query · React Hook Form + Zod · Axios · STOMP over WebSocket · Lucide Icons

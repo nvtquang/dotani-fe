@@ -5,6 +5,7 @@ import { Alert, Button, ButtonLink, Card, EmptyState, PageHeader, Skeleton, Tabs
 import { EventCard } from '../features/events/EventCard';
 import { PostCard } from '../features/posts/PostCard';
 import { useMyEventParticipations } from '../hooks/useEvents';
+import { usePostEngagementMap } from '../hooks/useEngagement';
 import { useFeed } from '../hooks/useFeed';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { isManager, isWardRole } from '../routes/navigation';
@@ -43,6 +44,7 @@ export const DashboardPage = () => {
   );
 
   const items = feed.data?.pages.flatMap((page) => page.items) ?? [];
+  const engagement = usePostEngagementMap(items.flatMap((item) => (item.kind === 'POST' && item.post.status === 'PUBLISHED' ? [item.post.id] : [])));
   const sentinelRef = useInfiniteScroll(() => {
     if (feed.hasNextPage && !feed.isFetchingNextPage) {
       void feed.fetchNextPage();
@@ -106,7 +108,7 @@ export const DashboardPage = () => {
             item.kind === 'EVENT' ? (
               <EventCard key={`event-${item.event.id}`} event={item.event} showStatus={manager} myStatus={myStatusByEvent.get(item.event.id)} />
             ) : (
-              <PostCard key={`post-${item.post.id}`} post={item.post} showStatus={manager} />
+              <PostCard key={`post-${item.post.id}`} post={item.post} showStatus={manager} engagement={engagement[item.post.id]} />
             ),
           )}
 

@@ -1,18 +1,22 @@
 import { Link } from 'react-router-dom';
 import { Badge, Card, StatusBadge, Time, UserAvatar, cn } from '../../components/ui';
+import type { PostEngagement } from '../../types/engagement';
 import type { Post } from '../../types/post';
 import { resolveAssetUrl } from '../../utils/assetUrl';
 import { postStatusLabel, postTypeLabel } from '../../utils/labels';
 import { excerpt } from '../../utils/text';
+import { ReactionBar } from './ReactionBar';
 
 type PostCardProps = {
   post: Post;
   /** officers see drafts/archived labels; members only ever get published posts */
   showStatus?: boolean;
+  /** reactions and comment count; the bar shows on published posts only */
+  engagement?: PostEngagement;
   className?: string;
 };
 
-export const PostCard = ({ post, showStatus, className }: PostCardProps) => {
+export const PostCard = ({ post, showStatus, engagement, className }: PostCardProps) => {
   const cover = post.images?.find((image) => (image.attachmentKind ?? 'IMAGE') === 'IMAGE');
   const coverUrl = resolveAssetUrl(cover?.imageUrl);
 
@@ -40,6 +44,7 @@ export const PostCard = ({ post, showStatus, className }: PostCardProps) => {
       {coverUrl && (
         <img src={coverUrl} alt="" loading="lazy" decoding="async" className="aspect-[16/9] w-full border-t border-slate-200 bg-slate-100 object-cover" />
       )}
+      {post.status === 'PUBLISHED' && <ReactionBar postId={post.id} engagement={engagement} commentsHref={`/posts/${post.id}#comments`} />}
     </Card>
   );
 };

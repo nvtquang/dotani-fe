@@ -1,6 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import { useInfiniteQuery } from '@tanstack/react-query';
-import { Bell, CalendarDays, CheckCheck, FileText, Megaphone } from 'lucide-react';
+import { ArrowRightLeft, Bell, CalendarDays, CheckCheck, FileText, Megaphone, Vote, Wallet } from 'lucide-react';
 import { Alert, Button, Card, EmptyState, LoadingSkeleton, PageHeader, Time, cn, useToast } from '../components/ui';
 import { useInfiniteScroll } from '../hooks/useInfiniteScroll';
 import { notificationKeys, useMarkAllNotificationsRead, useMarkNotificationRead, useUnreadNotifications } from '../hooks/useNotifications';
@@ -18,15 +18,29 @@ const typeLabel: Record<Notification['notificationType'], string> = {
   CONGRESS: 'Đại hội',
   POST_NEW: 'Bài viết mới',
   SYSTEM: 'Hệ thống',
+  FEE_REMINDER: 'Nhắc đoàn phí',
+  TRANSFER_REQUESTED: 'Đề nghị chuyển sinh hoạt',
+  TRANSFER_DECIDED: 'Kết quả chuyển sinh hoạt',
+  POST_COMMENT: 'Bình luận mới',
+  POLL_OPENED: 'Biểu quyết mới',
 };
 
-const typeIcon = (type: Notification['notificationType']) =>
-  type === 'POST_NEW' ? FileText : type === 'SYSTEM' ? Megaphone : type.startsWith('EVENT') || type === 'MEETING_SCHEDULE' || type === 'CONGRESS' ? CalendarDays : Bell;
+const typeIcon = (type: Notification['notificationType']) => {
+  if (type === 'POST_NEW' || type === 'POST_COMMENT') return FileText;
+  if (type === 'SYSTEM') return Megaphone;
+  if (type === 'FEE_REMINDER') return Wallet;
+  if (type.startsWith('TRANSFER')) return ArrowRightLeft;
+  if (type === 'POLL_OPENED') return Vote;
+  return type.startsWith('EVENT') || type === 'MEETING_SCHEDULE' || type === 'CONGRESS' ? CalendarDays : Bell;
+};
 
 const referencePath = (notification: Notification) => {
   if (!notification.referenceId) return null;
   if (notification.referenceType === 'EVENT' || notification.referenceType === 'TASK') return `/events/${notification.referenceId}`;
   if (notification.referenceType === 'POST') return `/posts/${notification.referenceId}`;
+  if (notification.referenceType === 'FEE_PERIOD') return `/fees/${notification.referenceId}`;
+  if (notification.referenceType === 'TRANSFER') return '/transfers';
+  if (notification.referenceType === 'POLL') return `/polls/${notification.referenceId}`;
   return null;
 };
 

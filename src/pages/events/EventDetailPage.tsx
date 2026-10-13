@@ -6,6 +6,7 @@ import { ForbiddenMessage } from '../../components/ForbiddenMessage';
 import { Alert, Badge, Button, Card, Dialog, EmptyState, LoadingSkeleton, Skeleton, StatusBadge, Time, useConfirm, useToast } from '../../components/ui';
 import { EventForm, EventFormFooter } from '../../features/events/EventForm';
 import { RegistrationPanel } from '../../features/events/RegistrationPanel';
+import { EventPolls } from '../../features/polls/EventPolls';
 import { MemberProfileDialog } from '../../features/members/MemberProfileDialog';
 import {
   useDeleteEvent,
@@ -178,6 +179,8 @@ export const EventDetailPage = () => {
                 : undefined
             }
           />
+
+          <EventPolls eventId={event.id} canManage={canManage} />
 
           {canManage && (
             <Card className="p-4 sm:p-5">

@@ -8,6 +8,7 @@ import { PostCard } from '../../features/posts/PostCard';
 import { PostForm, PostFormFooter } from '../../features/posts/PostForm';
 import { useInfiniteScroll } from '../../hooks/useInfiniteScroll';
 import { useOrganizations } from '../../hooks/useOrganizations';
+import { usePostEngagementMap } from '../../hooks/useEngagement';
 import { postKeys, useCreatePost } from '../../hooks/usePosts';
 import { isManager, isWardRole } from '../../routes/navigation';
 import { postService } from '../../services/postService';
@@ -41,6 +42,7 @@ export const PostListPage = () => {
     getNextPageParam: (last) => (last.number + 1 < last.totalPages ? last.number + 1 : undefined),
   });
   const posts = postsQuery.data?.pages.flatMap((page) => page.content) ?? [];
+  const engagement = usePostEngagementMap(posts.filter((post) => post.status === 'PUBLISHED').map((post) => post.id));
   const sentinelRef = useInfiniteScroll(() => {
     if (postsQuery.hasNextPage && !postsQuery.isFetchingNextPage) void postsQuery.fetchNextPage();
   }, Boolean(postsQuery.hasNextPage));
@@ -118,7 +120,7 @@ export const PostListPage = () => {
           </Card>
         )}
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} showStatus={isManager(role)} />
+          <PostCard key={post.id} post={post} showStatus={isManager(role)} engagement={engagement[post.id]} />
         ))}
         <div ref={sentinelRef} aria-hidden="true" />
         {postsQuery.hasNextPage && (

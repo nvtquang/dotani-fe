@@ -20,12 +20,35 @@ const actionLabel: Record<AuditAction, string> = {
   CREATE_POST: 'Tạo bài viết',
   UPDATE_POST: 'Cập nhật bài viết',
   DELETE_POST: 'Xóa bài viết',
+  CREATE_FEE_PERIOD: 'Tạo kỳ đoàn phí',
+  UPDATE_FEE_PERIOD: 'Cập nhật kỳ đoàn phí',
+  DELETE_FEE_PERIOD: 'Xóa kỳ đoàn phí',
+  RECORD_FEE_PAYMENT: 'Ghi nhận đóng đoàn phí',
+  CANCEL_FEE_PAYMENT: 'Hủy khoản đoàn phí',
+  REQUEST_TRANSFER: 'Đề nghị chuyển sinh hoạt',
+  APPROVE_TRANSFER: 'Duyệt chuyển sinh hoạt',
+  REJECT_TRANSFER: 'Từ chối chuyển sinh hoạt',
+  CREATE_AWARD: 'Ghi khen thưởng/kỷ luật',
+  UPDATE_AWARD: 'Sửa khen thưởng/kỷ luật',
+  DELETE_AWARD: 'Xóa khen thưởng/kỷ luật',
+  RATE_MEMBER: 'Xếp loại đoàn viên',
+  DELETE_RATING: 'Xóa xếp loại',
+  CREATE_POLL: 'Tạo biểu quyết',
+  UPDATE_POLL: 'Sửa biểu quyết',
+  DELETE_POLL: 'Xóa biểu quyết',
+  OPEN_POLL: 'Mở biểu quyết',
+  CLOSE_POLL: 'Đóng biểu quyết',
 };
 
 const resourceLabel: Record<AuditResourceType, string> = {
   MEMBER: 'Đoàn viên',
   EVENT: 'Sự kiện',
   POST: 'Bài viết',
+  FEE_PERIOD: 'Kỳ đoàn phí',
+  TRANSFER: 'Chuyển sinh hoạt',
+  AWARD: 'Khen thưởng/kỷ luật',
+  RATING: 'Xếp loại',
+  POLL: 'Biểu quyết',
 };
 
 export const AuditPage = () => {

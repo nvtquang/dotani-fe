@@ -3,8 +3,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { QrCode, Trash2, Upload } from 'lucide-react';
-import { httpClient } from '../../api/httpClient';
 import { Alert, Button, Card, Dialog, Field, Input, LoadingSkeleton } from '../../components/ui';
+import { useProtectedImage } from '../../hooks/useProtectedImage';
 import type { BankingFormValues, BankingInfo } from '../../types/banking';
 import { applyApiErrors, optionalText } from '../../utils/forms';
 
@@ -42,30 +42,6 @@ type BankingSectionProps = {
     onDeleteQr: () => void;
     onError: (message: string) => void;
   };
-};
-
-/** The QR image is served behind auth, so it is fetched as a blob instead of a plain <img src>. */
-const useProtectedImage = (path?: string | null) => {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    let objectUrl: string | null = null;
-    let active = true;
-    setUrl(null);
-    if (!path) return undefined;
-    httpClient
-      .get<Blob>(path, { responseType: 'blob' })
-      .then((response) => {
-        if (!active) return;
-        objectUrl = URL.createObjectURL(response.data);
-        setUrl(objectUrl);
-      })
-      .catch(() => active && setUrl(null));
-    return () => {
-      active = false;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [path]);
-  return url;
 };
 
 export const BankingSection = ({ title = 'Thông tin ngân hàng', banking, isLoading, errorMessage, edit }: BankingSectionProps) => {

@@ -41,8 +41,8 @@ export const Badge = ({ children, tone = 'blue', className }: { children: ReactN
 );
 
 const statusTone = (value: string): BadgeTone => {
-  if (/NOT_GOING|INACTIVE|CANCELLED|FAILURE/.test(value)) return 'red';
-  if (/ACTIVE|PUBLISHED|GOING|SUCCESS|COMPLETED/.test(value)) return 'green';
+  if (/NOT_GOING|NOT_COMPLETED|INACTIVE|CANCELLED|FAILURE|REJECTED/.test(value)) return 'red';
+  if (/ACTIVE|PUBLISHED|GOING|SUCCESS|COMPLETED|APPROVED|OPEN|PAID/.test(value)) return 'green';
   if (/PENDING|DRAFT|UNDECIDED/.test(value)) return 'yellow';
   return 'gray';
 };

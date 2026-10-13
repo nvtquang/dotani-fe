@@ -1,5 +1,6 @@
 import { Alert, Card, DetailList, LoadingSkeleton, StatusBadge, useConfirm, useToast } from '../components/ui';
 import { BankingSection } from '../features/banking/BankingSection';
+import { EmulationSection } from '../features/emulation/EmulationSection';
 import { AvatarSection } from '../features/profile/AvatarSection';
 import { ProfileForm } from '../features/profile/ProfileForm';
 import { SecuritySection } from '../features/profile/SecuritySection';
@@ -22,8 +23,9 @@ export const ProfilePage = () => {
   const { role } = useAuth();
   const toast = useToast();
   const confirm = useConfirm();
-  // officers are paid through other channels; banking details are a member feature
-  const hasBanking = role === 'MEMBER';
+  // members receive support transfers; officers also collect đoàn phí to this account (its QR is shown to payers)
+  const hasBanking = Boolean(role);
+  const bankingTitle = role === 'MEMBER' ? 'Thông tin ngân hàng' : 'Tài khoản nhận đoàn phí';
   const profileQuery = useMyProfile();
   const bankingQuery = useMyBanking(hasBanking);
   const updateProfile = useUpdateMyProfile();
@@ -89,6 +91,7 @@ export const ProfilePage = () => {
 
       {hasBanking && (
         <BankingSection
+          title={bankingTitle}
           banking={bankingQuery.data}
           isLoading={bankingQuery.isLoading}
           errorMessage={bankingQuery.error ? toApiError(bankingQuery.error).message : null}
@@ -109,6 +112,8 @@ export const ProfilePage = () => {
           }}
         />
       )}
+
+      <EmulationSection memberId={member.id} />
 
       <SecuritySection />
     </div>

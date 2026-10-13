@@ -1,9 +1,13 @@
 import { useId, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, Pencil, ShieldCheck, UserX } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, MessageSquare, Pencil, ShieldCheck, UserX } from 'lucide-react';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
 import { Alert, Button, ButtonLink, Card, DetailList, Dialog, LoadingSkeleton, StatusBadge, UserAvatar, useConfirm, useToast } from '../../components/ui';
 import { BankingSection } from '../../features/banking/BankingSection';
+import { EmulationSection } from '../../features/emulation/EmulationSection';
+import { TransferList } from '../../features/transfers/TransferList';
+import { TransferRequestDialog } from '../../features/transfers/TransferRequestDialog';
+import { useTransfers } from '../../hooks/useTransfers';
 import { MemberForm } from '../../features/members/MemberForm';
 import { RoleAssignmentForm, toMemberFormValues } from '../../features/members/RoleAssignmentForm';
 import { useDisableMember, useMember, useMemberBanking, useUpdateMember, useUpdateMemberRole } from '../../hooks/useMembers';
@@ -39,6 +43,7 @@ export const MemberDetailPage = () => {
   const updateMemberRole = useUpdateMemberRole(id);
   const disableMember = useDisableMember();
   const bankingQuery = useMemberBanking(id);
+  const transfersQuery = useTransfers({ memberId: id, page: 0, size: 10 });
 
   const handleUpdate = async (values: MemberFormValues) => {
     await updateMember.mutateAsync(values);
@@ -116,6 +121,12 @@ export const MemberDetailPage = () => {
                 Phân quyền
               </Button>
             )}
+            {member.organizationId !== user?.organizationId && (
+              <Button variant="secondary" size="sm" onClick={() => setSearchParams({ mode: 'transfer' })}>
+                <ArrowRightLeft size={16} aria-hidden="true" />
+                Chuyển sinh hoạt
+              </Button>
+            )}
             {member.id !== user?.memberId && (
               <ButtonLink to={`/chat?with=${member.id}`} variant="secondary" size="sm">
                 <MessageSquare size={16} aria-hidden="true" />
@@ -146,7 +157,21 @@ export const MemberDetailPage = () => {
         />
       </Card>
 
+      <EmulationSection memberId={member.id} />
+
+      <Card className="px-4 pt-4 sm:px-6 sm:pt-6">
+        <h2 className="text-base font-semibold text-slate-900">Lịch sử chuyển sinh hoạt</h2>
+        <TransferList compact transfers={transfersQuery.data?.content ?? []} isLoading={transfersQuery.isLoading} emptyText="Chưa chuyển sinh hoạt lần nào" />
+      </Card>
+
       <BankingSection banking={bankingQuery.data} isLoading={bankingQuery.isLoading} errorMessage={bankingQuery.error ? toApiError(bankingQuery.error).message : null} />
+
+      <TransferRequestDialog
+        open={mode === 'transfer'}
+        onClose={closeMode}
+        member={{ id: member.id, fullName: member.fullName }}
+        currentOrganizationId={member.organizationId}
+      />
 
       <Dialog
         open={mode === 'edit'}

@@ -27,6 +27,13 @@ const MemberListPage = page(() => import('../pages/members/MemberListPage'), 'Me
 const MemberDetailPage = page(() => import('../pages/members/MemberDetailPage'), 'MemberDetailPage');
 const OrganizationPage = page(() => import('../pages/organizations/OrganizationPage'), 'OrganizationPage');
 const AuditPage = page(() => import('../pages/admin/AuditPage'), 'AuditPage');
+const ReportPage = page(() => import('../pages/reports/ReportPage'), 'ReportPage');
+const FeeListPage = page(() => import('../pages/fees/FeeListPage'), 'FeeListPage');
+const FeeDetailPage = page(() => import('../pages/fees/FeeDetailPage'), 'FeeDetailPage');
+const TransferPage = page(() => import('../pages/transfers/TransferPage'), 'TransferPage');
+const EmulationPage = page(() => import('../pages/emulation/EmulationPage'), 'EmulationPage');
+const PollListPage = page(() => import('../pages/polls/PollListPage'), 'PollListPage');
+const PollDetailPage = page(() => import('../pages/polls/PollDetailPage'), 'PollDetailPage');
 
 export const router = createBrowserRouter([
   {
@@ -56,6 +63,18 @@ export const router = createBrowserRouter([
               { path: '/posts/:id', element: <PostDetailPage /> },
               { path: '/chat', element: <ChatPage /> },
               { path: '/notifications', element: <NotificationPage /> },
+              { path: '/fees', element: <FeeListPage /> },
+              { path: '/fees/:id', element: <FeeDetailPage /> },
+              { path: '/transfers', element: <TransferPage /> },
+              { path: '/polls', element: <PollListPage /> },
+              { path: '/polls/:id', element: <PollDetailPage /> },
+              {
+                element: <RoleBasedRoute allowedRoles={rolesFor('/reports')} />,
+                children: [
+                  { path: '/reports', element: <ReportPage /> },
+                  { path: '/emulation', element: <EmulationPage /> },
+                ],
+              },
               {
                 element: <RoleBasedRoute allowedRoles={rolesFor('/members')} />,
                 children: [

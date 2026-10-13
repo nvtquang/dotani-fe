@@ -4,7 +4,10 @@ import { ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { AttachmentGallery } from '../../components/AttachmentGallery';
 import { ForbiddenMessage } from '../../components/ForbiddenMessage';
 import { Alert, Badge, Button, Card, Dialog, LoadingSkeleton, Skeleton, StatusBadge, Time, UserAvatar, useConfirm, useToast } from '../../components/ui';
+import { CommentSection } from '../../features/posts/CommentSection';
 import { PostForm, PostFormFooter } from '../../features/posts/PostForm';
+import { ReactionBar } from '../../features/posts/ReactionBar';
+import { usePostEngagementMap } from '../../hooks/useEngagement';
 import { useOrganizations } from '../../hooks/useOrganizations';
 import { useDeletePost, useDeletePostImage, usePost, useUpdatePost, useUploadPostImages } from '../../hooks/usePosts';
 import { isManager, isWardRole } from '../../routes/navigation';
@@ -26,6 +29,7 @@ export const PostDetailPage = () => {
   const [formError, setFormError] = useState<string | null>(null);
 
   const postQuery = usePost(id);
+  const engagement = usePostEngagementMap(postQuery.data?.status === 'PUBLISHED' ? [id] : []);
   const organizationsQuery = useOrganizations(canManage);
   const updatePost = useUpdatePost(id);
   const deletePost = useDeletePost();
@@ -96,6 +100,7 @@ export const PostDetailPage = () => {
           </div>
         </div>
         <div className="mt-5 text-[15px] leading-relaxed whitespace-pre-line text-slate-800">{post.content}</div>
+        {post.status === 'PUBLISHED' && <ReactionBar postId={post.id} engagement={engagement[post.id]} className="-mx-2 mt-5 sm:-mx-4" />}
 
         {canManage && (
           <div className="mt-6 flex flex-wrap gap-2 border-t border-slate-200 pt-4">
@@ -127,6 +132,12 @@ export const PostDetailPage = () => {
           }
         />
       </div>
+
+      {post.status === 'PUBLISHED' && (
+        <div className="mt-4">
+          <CommentSection postId={post.id} />
+        </div>
+      )}
 
       {canManage && (
         <Dialog

@@ -1,13 +1,18 @@
 import {
+  ArrowRightLeft,
   Bell,
+  ChartColumn,
   CalendarDays,
   FileText,
   Landmark,
   MessageSquare,
   Newspaper,
   ShieldCheck,
+  Trophy,
   UserRound,
   UsersRound,
+  Vote,
+  Wallet,
   type LucideIcon,
 } from 'lucide-react';
 import type { Role } from '../types/api';
@@ -40,6 +45,8 @@ export const NAV_ITEMS: NavItem[] = [
   { to: '/posts', label: 'Bài viết', icon: FileText, roles: ALL_ROLES, group: 'main', keywords: 'tin tuc bao cao' },
   { to: '/chat', label: 'Chat', icon: MessageSquare, roles: ALL_ROLES, group: 'main', mobileTab: true, badge: 'chat', keywords: 'tin nhan' },
   { to: '/notifications', label: 'Thông báo', icon: Bell, roles: ALL_ROLES, group: 'main', mobileTab: true, badge: 'notifications' },
+  { to: '/polls', label: 'Biểu quyết', icon: Vote, roles: ALL_ROLES, group: 'main', keywords: 'khao sat bo phieu dai hoi y kien' },
+  { to: '/fees', label: 'Đoàn phí', icon: Wallet, roles: ALL_ROLES, group: 'main', keywords: 'doan phi dong tien qr chuyen khoan' },
   {
     to: '/members',
     label: 'Đoàn viên',
@@ -50,7 +57,10 @@ export const NAV_ITEMS: NavItem[] = [
     keywords: 'thanh vien danh sach',
   },
   { to: '/organizations', label: 'Tổ dân phố', icon: Landmark, roles: WARD_ROLES, group: 'manage', keywords: 'tdp to chuc chi doan' },
+  { to: '/reports', label: 'Báo cáo thống kê', icon: ChartColumn, roles: MANAGER_ROLES, group: 'manage', keywords: 'thong ke bieu do do tuoi gioi tinh ty le tham gia' },
+  { to: '/emulation', label: 'Thi đua – khen thưởng', icon: Trophy, roles: MANAGER_ROLES, group: 'manage', keywords: 'xep loai danh gia khen thuong ky luat' },
   { to: '/audit-logs', label: 'Nhật ký hệ thống', icon: ShieldCheck, roles: WARD_ROLES, group: 'manage', keywords: 'audit phan quyen' },
+  { to: '/transfers', label: 'Chuyển sinh hoạt', icon: ArrowRightLeft, roles: ALL_ROLES, group: 'personal', keywords: 'chuyen to dan pho chi doan' },
   { to: '/profile', label: 'Hồ sơ', icon: UserRound, roles: ALL_ROLES, group: 'personal', mobileTab: true, keywords: 'ca nhan tai khoan mat khau' },
 ];
 
